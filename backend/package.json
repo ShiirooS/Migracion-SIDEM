@@ -1,0 +1,9 @@
+{
+  "name": "sidem-pan-backend",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "echo \"backend not implemented yet\"",
+    "build": "echo \"backend build not implemented yet\""
+  }
+}
