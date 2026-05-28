@@ -1,36 +1,53 @@
 import { useState } from "react";
 import { LoginView } from "./LoginView";
-import { AppShell } from "./AppShell";
+import { SolicitudFlow } from "./solicitante/SolicitudFlow";
+import { AgenteShell } from "./agente/AgenteShell";
 import { getSession, logout, type LoginResponse } from "@/lib/api";
 
-export type View = "login" | "solicitante" | "agente" | "admin";
+export type Rol = "AGENTE" | "ADMIN";
 
-function getInitialView(): View {
+interface Session {
+  token: string;
+  rol: Rol;
+  nombre: string;
+}
+
+function restoreSession(): Session | null {
   const session = getSession();
-  if (!session) return "login";
-  return session.rol === "ADMIN" ? "admin" : "agente";
+  const token = localStorage.getItem("sidem_token");
+  if (!session || !token) return null;
+  return { token, rol: session.rol, nombre: session.nombre };
 }
 
 export function MigraCheckApp() {
-  const [currentView, setCurrentView] = useState<View>(getInitialView);
-  const [userName, setUserName] = useState<string>(() => getSession()?.nombre ?? "");
+  const [session, setSession] = useState<Session | null>(restoreSession);
+  const [showSolicitud, setShowSolicitud] = useState(false);
 
-  function handleLogin(view: View, session: LoginResponse) {
-    setUserName(session.nombre);
-    setCurrentView(view);
+  function handleLogin(data: LoginResponse) {
+    setSession({ token: data.token, rol: data.rol, nombre: data.nombre });
   }
 
-  function handleSwitchView(view: View) {
-    if (view === "login") {
-      logout();
-      setUserName("");
-    }
-    setCurrentView(view);
+  function handleLogout() {
+    logout();
+    setSession(null);
+    setShowSolicitud(false);
   }
 
-  if (currentView === "login") {
-    return <LoginView onLogin={handleLogin} switchView={handleSwitchView} />;
+  // Agente / Admin autenticado
+  if (session) {
+    return <AgenteShell session={session} onLogout={handleLogout} />;
   }
 
-  return <AppShell role={currentView} switchView={handleSwitchView} userName={userName} />;
+  // Solicitante sin login → wizard de registro
+  if (showSolicitud) {
+    return <SolicitudFlow onVolver={() => setShowSolicitud(false)} />;
+  }
+
+  // Pantalla de login
+  return (
+    <LoginView
+      onLogin={handleLogin}
+      onSolicitud={() => setShowSolicitud(true)}
+    />
+  );
 }

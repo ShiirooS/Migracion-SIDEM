@@ -86,11 +86,18 @@ npm run dev      # → http://localhost:5173
 │   ├── src/
 │   │   ├── assets/
 │   │   ├── components/
-│   │   │   ├── migracheck/    ← app principal
-│   │   │   └── ui/            ← shadcn/ui
+│   │   │   ├── migracheck/
+│   │   │   │   ├── MigraCheckApp.tsx   ← raíz de la app
+│   │   │   │   ├── LoginView.tsx       ← login real JWT
+│   │   │   │   ├── agente/
+│   │   │   │   │   └── AgenteShell.tsx ← shell autenticado
+│   │   │   │   └── solicitante/
+│   │   │   │       ├── SolicitudFlow.tsx
+│   │   │   │       └── NuevaSolicitud.tsx ← wizard RF01
+│   │   │   └── ui/                     ← shadcn/ui
 │   │   ├── hooks/
 │   │   ├── lib/
-│   │   │   ├── api.ts         ← cliente HTTP
+│   │   │   ├── api.ts         ← cliente HTTP real
 │   │   │   └── utils.ts
 │   │   ├── main.tsx
 │   │   └── styles.css
@@ -220,6 +227,31 @@ Validaciones implementadas (CA-01 a CA-03):
 - CA-03: Pantalla de confirmación con `#PAN-AAAA-NNNNN`, categoría y estado PENDIENTE
 
 Conecta a: `POST /api/applications` (SCRUM-33 — pendiente Eriel)
+
+---
+
+### SCRUM-32b — [FRONT] Integración real frontend ↔ backend (refactor)
+**Responsable:** Gerald | **Estado:** ✅ Completado
+
+Reescritura completa del frontend para eliminar datos estáticos y conectar únicamente lo implementado (SCRUM-29–32):
+
+Archivos eliminados (estáticos, sin backend):
+- `AppShell.tsx`, `Sidebar.tsx`, `Brand.tsx`, `TestMenu.tsx`
+- `agente/ColaAuditoria.tsx`, `CasosPendientes.tsx`, `HistorialDictamenes.tsx`
+- `admin/MetricasSNM.tsx`, `ListasControl.tsx`, `CuentasAgentes.tsx`, `Trazabilidad.tsx`
+- `solicitante/Inicio.tsx`, `MarcoLegal.tsx`, `MisTramites.tsx`
+- `mocks/`, `services/`, `types/` — datos hardcoded y APIs mock
+
+Archivos nuevos/reescritos:
+- `MigraCheckApp.tsx` — máquina de estados: `session` (JWT) → `AgenteShell`, `showSolicitud` → `SolicitudFlow`, default → `LoginView`
+- `LoginView.tsx` — sin TestMenu; tab Ciudadano → wizard directo; tab Institucional → `POST /api/auth/login` real con bcrypt+JWT
+- `solicitante/SolicitudFlow.tsx` — wrapper con cabecera institucional y botón volver alrededor de `NuevaSolicitud`
+- `agente/AgenteShell.tsx` — shell autenticado con nombre/rol real desde JWT, sidebar con items deshabilitados ("Dev"), cards de módulos pendientes (sin datos fake), indicadores verdes para SCRUM-30/31/32
+
+Comportamiento resultante:
+- Login agente/admin → autenticación real contra PostgreSQL, sesión en `localStorage`
+- Solicitante → wizard 3 pasos funcional → `POST /api/applications` → ticket `PAN-AAAA-NNNNN`
+- Zero datos hardcoded en ninguna vista
 
 ---
 
