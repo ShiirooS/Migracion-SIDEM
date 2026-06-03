@@ -120,7 +120,10 @@ export async function submitVerdict(
 // ─── Audit log ────────────────────────────────────────────────────────────────
 
 export async function getAuditLog(params?: { fecha_desde?: string; fecha_hasta?: string; agente_id?: string; expediente_id?: string }) {
-  const qs = new URLSearchParams(params as Record<string, string>).toString();
+  const clean = Object.fromEntries(
+    Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== ""),
+  );
+  const qs = new URLSearchParams(clean as Record<string, string>).toString();
   return request(`/audit-log${qs ? "?" + qs : ""}`);
 }
 

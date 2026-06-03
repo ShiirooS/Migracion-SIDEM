@@ -50,7 +50,7 @@ export function ColaExpedientes({ modoHistorial = false, onSeleccionar }: Props)
   const [apps, setApps] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [estadoFiltro, setEstadoFiltro] = useState<string>(modoHistorial ? "APROBADO" : "");
+  const [estadoFiltro, setEstadoFiltro] = useState<string>(modoHistorial ? "APROBADO" : "TODOS");
 
   async function cargar(estado?: string) {
     setLoading(true);
@@ -66,7 +66,7 @@ export function ColaExpedientes({ modoHistorial = false, onSeleccionar }: Props)
   }
 
   useEffect(() => {
-    cargar(estadoFiltro || undefined);
+    cargar(estadoFiltro === "TODOS" ? undefined : estadoFiltro);
   }, [estadoFiltro]);
 
   return (
@@ -81,7 +81,7 @@ export function ColaExpedientes({ modoHistorial = false, onSeleccionar }: Props)
               <SelectValue placeholder="Todos los estados" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todos</SelectItem>
+              <SelectItem value="TODOS">Todos</SelectItem>
               {ESTADOS.map((e) => (
                 <SelectItem key={e} value={e}>{e.replace(/_/g, " ")}</SelectItem>
               ))}
@@ -90,7 +90,7 @@ export function ColaExpedientes({ modoHistorial = false, onSeleccionar }: Props)
           <Button
             variant="outline"
             size="icon"
-            onClick={() => cargar(estadoFiltro || undefined)}
+            onClick={() => cargar(estadoFiltro === "TODOS" ? undefined : estadoFiltro)}
             disabled={loading}
           >
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
