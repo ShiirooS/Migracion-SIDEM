@@ -1,8 +1,8 @@
-# SIDEM-PAN: Módulo Digital de Debida Diligencia Migratoria
+# SIDEM-PAN — Sistema de Debida Diligencia Migratoria
 
 **Sistema gubernamental de evaluación de solicitudes migratorias para Panamá.**
 
-Basado en **Decreto Ley 3 de 22 de febrero de 2008** | Proyecto: **ISA3.3** | Universidad Tecnológica de Panamá
+Basado en **Decreto Ley 3 del 22 de febrero de 2008** | Proyecto: **ISA3.3** | Universidad Tecnológica de Panamá
 
 ---
 
@@ -13,11 +13,10 @@ Basado en **Decreto Ley 3 de 22 de febrero de 2008** | Proyecto: **ISA3.3** | Un
 | Frontend | React 19 + TypeScript + Tailwind CSS v4 + shadcn/ui |
 | Backend | Node.js + Express + TypeScript |
 | Base de datos | Supabase PostgreSQL (proyecto `wlzrvuwuhbtrjobcarar`) |
-| Auth | JWT (jsonwebtoken) + bcrypt, token 15 min |
+| Auth | JWT (jsonwebtoken) + bcrypt — token 15 min |
 | Storage PDFs | Supabase Storage — bucket `documents` |
-| Deploy | GCP Cloud Run o Azure Container Apps |
 
-> No se necesita Docker ni PostgreSQL local. La BD y el Storage corren en Supabase.
+> No se necesita Docker ni PostgreSQL local. La BD y el Storage corren en Supabase cloud.
 
 ---
 
@@ -25,59 +24,108 @@ Basado en **Decreto Ley 3 de 22 de febrero de 2008** | Proyecto: **ISA3.3** | Un
 
 ### Prerrequisitos
 
-- Node.js 20+ (ver `.nvmrc`)
-- npm o pnpm
+- Node.js 20+
+- npm
 
-### 1. Clonar y configurar entorno
+### 1. Clonar el repositorio
 
 ```bash
 git clone https://github.com/ShiirooS/Migracion-SIDEM.git
 cd Migracion-SIDEM
-git checkout dev
 ```
 
-### 2. Variables de entorno del backend
+### 2. Variables de entorno — Backend
 
 ```bash
 cp backend/.env.example backend/.env
 ```
 
-Abrir `backend/.env` y completar `SUPABASE_SERVICE_KEY`:
-- Ir a [Supabase Dashboard](https://supabase.com/dashboard/project/wlzrvuwuhbtrjobcarar/settings/api)
+Editar `backend/.env` y completar los valores:
+
+```env
+NODE_ENV=development
+PORT=4000
+SUPABASE_URL=https://wlzrvuwuhbtrjobcarar.supabase.co
+SUPABASE_SERVICE_KEY=<service_role key — ver Dashboard Supabase>
+JWT_SECRET=change_me_to_a_strong_secret
+JWT_EXPIRES_IN=15m
+```
+
+Para obtener `SUPABASE_SERVICE_KEY`:
+- Ir a [Supabase Dashboard → Settings → API](https://supabase.com/dashboard/project/wlzrvuwuhbtrjobcarar/settings/api)
 - Copiar el valor de **service_role** (secret)
-- Pegarlo en el `.env`
 
-El `SUPABASE_URL` ya está pre-configurado en el `.env.example`.
-
-### 3. Variables de entorno del frontend
+### 3. Variables de entorno — Frontend
 
 ```bash
 cp frontend/.env.example frontend/.env
 ```
 
-El `.env.example` del frontend ya incluye la `VITE_SUPABASE_ANON_KEY` pública — no necesita cambios.
+El `.env.example` del frontend ya tiene los valores públicos preconfigurados — no necesita cambios.
 
 ### 4. Instalar dependencias y arrancar
 
 ```bash
-# Backend (terminal 1)
+# Terminal 1 — Backend
 cd backend
 npm install
 npm run dev      # → http://localhost:4000
 
-# Frontend (terminal 2)
+# Terminal 2 — Frontend
 cd frontend
 npm install
 npm run dev      # → http://localhost:5173
 ```
 
-### Usuarios de prueba
+Abrir el navegador en **http://localhost:5173**
+
+---
+
+## Usuarios de Prueba
 
 | Email | Contraseña | Rol |
 |-------|-----------|-----|
-| admin@sidem-pan.gob.pa | sidem2026 | ADMIN |
-| agente1@sidem-pan.gob.pa | sidem2026 | AGENTE |
-| agente2@sidem-pan.gob.pa | sidem2026 | AGENTE |
+| admin@sidem-pan.gob.pa | Admin2026! | ADMIN |
+| agente1@sidem-pan.gob.pa | Admin2026! | AGENTE |
+| agente2@sidem-pan.gob.pa | Admin2026! | AGENTE |
+
+---
+
+## Flujos de la Aplicación
+
+### Ciudadano Extranjero (sin login)
+1. Entrar a http://localhost:5173
+2. Tab **"Ciudadano Extranjero"**
+3. **Iniciar solicitud de evaluación** → wizard de 3 pasos (identidad, solvencia, antecedentes penales)
+4. Al finalizar se genera un ticket `#PAN-AAAA-NNNNN`
+5. **Consultar estado de trámite** → ingresar ticket + pasaporte
+
+### Agente de Cumplimiento (login con rol AGENTE)
+1. Tab **"Acceso Institucional"** → ingresar credenciales
+2. **Cola de expedientes** — lista ordenada por score de riesgo (ALTO primero), con badges de alerta INTERPOL/OFAC
+3. Hacer clic en un expediente → ver detalle completo, documentos PDF y formulario de dictamen
+4. Emitir **APROBADO** o **RECHAZADO** citando el artículo legal
+
+### Administrador (login con rol ADMIN)
+Todo lo del Agente, más:
+- **Log de auditoría WORM** — registro inmutable de todas las acciones (Art. 6 DL3/2008)
+- **Métricas operativas SNM** — dashboard con totales por estado, nivel de riesgo y categoría migratoria
+
+---
+
+## Endpoints API
+
+| Método | Ruta | Acceso | Story |
+|--------|------|--------|-------|
+| POST | `/api/auth/login` | Público | Auth |
+| POST | `/api/applications` | Público | SCRUM-33 |
+| GET | `/api/applications` | AGENTE / ADMIN | SCRUM-36 |
+| GET | `/api/applications/status` | Público | SCRUM-38 |
+| GET | `/api/applications/:id` | AGENTE / ADMIN | SCRUM-37 |
+| POST | `/api/applications/:id/verdict` | AGENTE / ADMIN | SCRUM-37 |
+| GET | `/api/audit-log` | ADMIN | SCRUM-39 |
+| GET | `/api/metrics` | ADMIN | SCRUM-40 |
+| GET | `/health` | Público | — |
 
 ---
 
@@ -87,128 +135,97 @@ npm run dev      # → http://localhost:5173
 .
 ├── backend/
 │   ├── src/
-│   │   ├── lib/
-│   │   │   └── supabase.ts        ← cliente Supabase admin (service key)
-│   │   ├── middleware/
-│   │   │   └── auth.ts            ← requireAuth() con verificación JWT
+│   │   ├── lib/supabase.ts            ← cliente Supabase admin (service key)
+│   │   ├── middleware/auth.ts         ← requireAuth() con verificación JWT
 │   │   ├── routes/
-│   │   │   ├── auth.ts            ← POST /api/auth/login
-│   │   │   ├── applications.ts    ← CRUD expedientes + scoring
-│   │   │   └── audit.ts           ← GET /api/audit-log
+│   │   │   ├── auth.ts                ← POST /api/auth/login
+│   │   │   ├── applications.ts        ← CRUD expedientes + scoring
+│   │   │   ├── audit.ts               ← GET /api/audit-log (WORM)
+│   │   │   └── metrics.ts             ← GET /api/metrics (admin)
 │   │   ├── services/
-│   │   │   ├── audit.ts           ← logAction() WORM centralizado
-│   │   │   └── risk-engine.ts     ← calcularRiesgo() INTERPOL/OFAC/País
-│   │   ├── db/
-│   │   │   └── migrations/001_initial.sql  ← esquema (ya aplicado en Supabase)
-│   │   └── index.ts               ← servidor Express
+│   │   │   ├── audit.ts               ← logAction() centralizado
+│   │   │   └── risk-engine.ts         ← calcularRiesgo() INTERPOL/OFAC/País
+│   │   └── index.ts                   ← servidor Express
 │   ├── .env.example
-│   ├── package.json
-│   └── tsconfig.json
+│   └── package.json
 ├── frontend/
 │   ├── src/
-│   │   ├── components/
-│   │   │   ├── migracheck/        ← pantallas principales
-│   │   │   │   ├── admin/         ← CuentasAgentes, Trazabilidad, etc.
-│   │   │   │   ├── agente/        ← CasosPendientes, HistorialDictamenes
-│   │   │   │   └── solicitante/   ← NuevaSolicitud, MisTramites, MarcoLegal
-│   │   │   └── ui/                ← shadcn/ui
-│   │   ├── lib/
-│   │   │   └── api.ts             ← cliente HTTP hacia el backend
-│   │   └── vite-env.d.ts          ← tipos para import.meta.env y assets
+│   │   ├── components/migracheck/
+│   │   │   ├── LoginView.tsx           ← pantalla de acceso (ciudadano + institucional)
+│   │   │   ├── MigraCheckApp.tsx       ← router de vistas públicas
+│   │   │   ├── agente/
+│   │   │   │   ├── AgenteShell.tsx     ← shell con sidebar y navegación
+│   │   │   │   ├── ColaExpedientes.tsx ← lista con filtros y badges de riesgo
+│   │   │   │   ├── ExpedienteDetalle.tsx ← detalle + formulario de dictamen
+│   │   │   │   ├── AuditLogViewer.tsx  ← visor log WORM con filtros
+│   │   │   │   └── MetricasSNM.tsx     ← dashboard de métricas
+│   │   │   └── solicitante/
+│   │   │       ├── SolicitudFlow.tsx   ← wrapper del wizard
+│   │   │       ├── NuevaSolicitud.tsx  ← wizard 3 pasos
+│   │   │       └── ConsultaEstado.tsx  ← consulta pública por ticket+pasaporte
+│   │   └── lib/api.ts                  ← cliente HTTP hacia el backend
 │   ├── .env.example
-│   ├── vite.config.ts             ← proxy /api → localhost:4000
 │   └── package.json
-├── scripts/
-│   └── import-interpol.ts         ← importa INTERPOL/OFAC desde OpenSanctions
-├── infra/
-│   └── docker-compose.yml         ← referencia histórica (ya no requerido)
-├── .mcp.json                      ← MCP server Supabase para Claude Code
-└── docs/
+├── supabase/
+│   ├── migrations/
+│   │   └── 20260528000001_initial_schema.sql  ← esquema completo + triggers WORM
+│   └── seed.sql                        ← usuarios y datos de prueba
+└── .mcp.json                           ← MCP server Supabase para Claude Code
 ```
 
 ---
 
-## Endpoints API
+## Motor de Scoring de Riesgo
 
-| Método | Ruta | Rol | Story |
-|--------|------|-----|-------|
-| POST | `/api/auth/login` | Público | Auth |
-| POST | `/api/applications` | Público | SCRUM-33 |
-| GET | `/api/applications` | AGENTE/ADMIN | SCRUM-36 |
-| GET | `/api/applications/status` | Público | SCRUM-38 |
-| GET | `/api/applications/:id` | AGENTE/ADMIN | SCRUM-37 |
-| POST | `/api/applications/:id/verdict` | AGENTE/ADMIN | SCRUM-37 |
-| GET | `/api/audit-log` | ADMIN | SCRUM-39 |
+| Factor | Puntos | Base legal |
+|--------|--------|-----------|
+| INTERPOL Red Notice (por pasaporte) | +50 | Art. 50 Num. 4 DL3/2008 |
+| INTERPOL Red Notice (por nombre, fuzzy) | +50 | Art. 50 Num. 4 DL3/2008 |
+| OFAC SDN (por pasaporte) | +40 | Art. 50 Num. 5 DL3/2008 |
+| País con atención especial | +10 | Art. 6 Num. 4 DL3/2008 |
 
----
-
-## Roles y Permisos (RBAC)
-
-| Rol | Acceso |
-|-----|--------|
-| SOLICITANTE | Crea solicitud y consulta estado — sin login |
-| AGENTE | Revisa expedientes asignados y emite dictamen (JWT) |
-| ADMIN | Todo lo del agente + auditoría + gestión de agentes (JWT) |
+Umbrales: `0–9` **BAJO** · `10–49` **MEDIO** · `≥50` **ALTO**
 
 ---
 
-## Motor de Scoring de Riesgo (RF04)
+## Roles y Permisos
 
-| Factor | Puntos | Artículo |
-|--------|--------|----------|
-| INTERPOL Red Notice | +50 | Art. 50 Num. 4 |
-| OFAC SDN | +40 | Art. 50 Num. 5 |
-| País con atención especial | +10 | Art. 6 Num. 4 |
-
-Umbrales: `0–9` BAJO · `10–49` MEDIO · `50–100` ALTO
+| Rol | Capacidades |
+|-----|------------|
+| Solicitante | Crea solicitud y consulta estado — sin login |
+| AGENTE | Cola de expedientes, detalle, emitir dictamen (JWT) |
+| ADMIN | Todo lo del AGENTE + auditoría WORM + métricas SNM (JWT) |
 
 ---
 
-## Scripts Útiles
-
-```bash
-# Importar alertas INTERPOL/OFAC desde OpenSanctions (SCRUM-35)
-cd scripts
-npx ts-node import-interpol.ts
-```
-
----
-
-## Registro de Implementaciones
-
-### Sprint 1 — Completado
-
-| Story | Responsable | Descripción | Estado |
-|-------|------------|-------------|--------|
-| SCRUM-29 | Bruno | Setup stack y monorepo | ✅ |
-| SCRUM-30 | Bruno | Migración SQL + BD Supabase | ✅ |
-| SCRUM-31 | Bruno | JWT auth + middleware RBAC | ✅ |
-| SCRUM-32 | Gerald | Formulario wizard de solicitud migratoria | ✅ |
-| SCRUM-33 | Eriel | `POST /api/applications` — validaciones + guardado en BD | ✅ |
-| SCRUM-34 | Ana | Motor de scoring INTERPOL/OFAC/País restringido | ✅ |
-| SCRUM-35 | Eriel | Script importación INTERPOL desde OpenSanctions | ✅ |
-| SCRUM-36 | Gerald | Dashboard agente — lista expedientes por riesgo | ✅ |
-| SCRUM-37 | Ana | Pantalla dictamen + visor PDF (URLs firmadas Supabase) | ✅ |
-| SCRUM-38 | Gerald | Consulta pública de estado del trámite | ✅ |
-| SCRUM-39 | Bruno | Servicio `logAction()` — auditoría WORM centralizado | ✅ |
-| SCRUM-40 | Ana | Integración frontend-backend con Supabase | ✅ |
-| SCRUM-41 | Bruno | Deploy GCP Cloud Run / Azure con HTTPS | Pendiente |
-
----
-
-## Criterios de Aceptación MVP
+## Criterios de Aceptación Sprint 1
 
 | ID | Verificación | RF |
 |----|-------------|-----|
 | CA-01 | Formulario bloquea pasaporte con < 6 meses de vigencia | RF02 |
-| CA-02 | Formulario bloquea archivos que no sean PDF | RF02 |
+| CA-02 | Formulario bloquea archivos que no sean PDF (máx. 5 MB) | RF02 |
 | CA-03 | Solicitud válida genera ticket `#PAN-AAAA-NNNNN` | RF01 |
-| CA-04 | Solicitud con nombre INTERPOL → badge ROJO en dashboard | RF04 |
-| CA-05 | Dashboard muestra expedientes ALTO primero | RF05 |
-| CA-06 | Agente aprueba expediente citando Art. 28 | RF06 |
+| CA-04 | Solicitud con nombre/pasaporte INTERPOL → badge ROJO en cola | RF04 |
+| CA-05 | Cola muestra expedientes ALTO primero (score desc) | RF05 |
+| CA-06 | Agente aprueba expediente citando artículo legal | RF06 |
 | CA-07 | Agente rechaza expediente citando Art. 50 Num. 4 | RF06 |
 | CA-08 | Dictamen sin justificación → botón deshabilitado | RF06 |
 | CA-09 | Solicitante consulta estado con ticket + pasaporte | RF03 |
-| CA-10 | Audit log muestra secuencia CREADO→SCORING→ABIERTO→DICTAMEN | RF10 |
-| CA-11 | Campos del solicitante son solo lectura para el agente | RF06 |
-| CA-12 | Acceso a dashboard sin JWT → 401 | RBAC |
+| CA-10 | Audit log muestra todas las acciones con IP y timestamp | RF10 |
+| CA-11 | Acceso a endpoints protegidos sin JWT → 401 | RBAC |
+| CA-12 | Métricas SNM solo accesibles con rol ADMIN | RBAC |
+
+---
+
+## Sprint 1 — Implementaciones
+
+| Story | Descripción | Estado |
+|-------|-------------|--------|
+| SCRUM-33 | `POST /api/applications` — validaciones legales + upload PDF | ✅ |
+| SCRUM-34 | Motor scoring INTERPOL / OFAC / País restringido | ✅ |
+| SCRUM-35 | Login JWT + bcrypt + audit de accesos | ✅ |
+| SCRUM-36 | Cola de expedientes ordenada por riesgo (frontend + backend) | ✅ |
+| SCRUM-37 | Detalle de expediente + formulario dictamen + signed PDF URLs | ✅ |
+| SCRUM-38 | Consulta pública de estado por ticket + pasaporte | ✅ |
+| SCRUM-39 | Log de auditoría WORM con triggers SQL anti-DELETE/UPDATE | ✅ |
+| SCRUM-40 | Métricas operativas SNM — endpoint admin + dashboard frontend | ✅ |
