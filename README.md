@@ -6,50 +6,66 @@ Basado en **Decreto Ley 3 de 22 de febrero de 2008** | Proyecto: **ISA3.3** | Un
 
 ---
 
-## Descripción del Proyecto
-
-SIDEM-PAN es un módulo digital que automatiza el proceso de **debida diligencia migratoria** en Panamá. El sistema permite:
-
-- **Registro y validación** de solicitudes de evaluación migratoria
-- **Scoring automático de riesgo** basado en múltiples variables
-- **Integración con INTERPOL** para validación de pasaportes
-- **Dashboard administrativo** para agentes migratorios
-- **Auditoría completa** con logs inmutables (WORM)
-- **Notificaciones** por correo electrónico
-- **Exportación de reportes** en PDF
-
----
-
 ## Stack Técnico
 
 | Capa | Tecnología |
 |------|-----------|
 | Frontend | React 19 + TypeScript + Tailwind CSS v4 + shadcn/ui |
 | Backend | Node.js + Express + TypeScript |
-| Base de datos | PostgreSQL 16 |
+| Base de datos | Supabase PostgreSQL (proyecto `wlzrvuwuhbtrjobcarar`) |
 | Auth | JWT (jsonwebtoken) + bcrypt, token 15 min |
-| Almacenamiento PDFs | Sistema de archivos local `/uploads` |
+| Storage PDFs | Supabase Storage — bucket `documents` |
 | Deploy | GCP Cloud Run o Azure Container Apps |
+
+> No se necesita Docker ni PostgreSQL local. La BD y el Storage corren en Supabase.
 
 ---
 
 ## Arranque Local
 
+### Prerrequisitos
+
+- Node.js 20+ (ver `.nvmrc`)
+- npm o pnpm
+
+### 1. Clonar y configurar entorno
+
 ```bash
-# 1. Copiar variables de entorno
-cp .env.example .env
+git clone https://github.com/ShiirooS/Migracion-SIDEM.git
+cd Migracion-SIDEM
+git checkout dev
+```
+
+### 2. Variables de entorno del backend
+
+```bash
 cp backend/.env.example backend/.env
+```
 
-# 2. Levantar PostgreSQL (ejecuta la migración automáticamente)
-cd infra && docker compose up -d
+Abrir `backend/.env` y completar `SUPABASE_SERVICE_KEY`:
+- Ir a [Supabase Dashboard](https://supabase.com/dashboard/project/wlzrvuwuhbtrjobcarar/settings/api)
+- Copiar el valor de **service_role** (secret)
+- Pegarlo en el `.env`
 
-# 3. Backend
+El `SUPABASE_URL` ya está pre-configurado en el `.env.example`.
+
+### 3. Variables de entorno del frontend
+
+```bash
+cp frontend/.env.example frontend/.env
+```
+
+El `.env.example` del frontend ya incluye la `VITE_SUPABASE_ANON_KEY` pública — no necesita cambios.
+
+### 4. Instalar dependencias y arrancar
+
+```bash
+# Backend (terminal 1)
 cd backend
 npm install
-npm run seed     # crea usuarios de prueba (contraseña: sidem2026)
 npm run dev      # → http://localhost:4000
 
-# 4. Frontend
+# Frontend (terminal 2)
 cd frontend
 npm install
 npm run dev      # → http://localhost:5173
@@ -71,38 +87,58 @@ npm run dev      # → http://localhost:5173
 .
 ├── backend/
 │   ├── src/
+│   │   ├── lib/
+│   │   │   └── supabase.ts        ← cliente Supabase admin (service key)
+│   │   ├── middleware/
+│   │   │   └── auth.ts            ← requireAuth() con verificación JWT
+│   │   ├── routes/
+│   │   │   ├── auth.ts            ← POST /api/auth/login
+│   │   │   ├── applications.ts    ← CRUD expedientes + scoring
+│   │   │   └── audit.ts           ← GET /api/audit-log
+│   │   ├── services/
+│   │   │   ├── audit.ts           ← logAction() WORM centralizado
+│   │   │   └── risk-engine.ts     ← calcularRiesgo() INTERPOL/OFAC/País
 │   │   ├── db/
-│   │   │   ├── migrations/001_initial.sql
-│   │   │   ├── seeds/seed.ts
-│   │   │   ├── pool.ts
-│   │   │   └── migrate.ts
-│   │   ├── middleware/auth.ts
-│   │   ├── routes/auth.ts
-│   │   ├── services/          ← risk-engine.ts, audit.ts (pendientes)
-│   │   └── index.ts
+│   │   │   └── migrations/001_initial.sql  ← esquema (ya aplicado en Supabase)
+│   │   └── index.ts               ← servidor Express
 │   ├── .env.example
+│   ├── package.json
 │   └── tsconfig.json
 ├── frontend/
 │   ├── src/
-│   │   ├── assets/
 │   │   ├── components/
-│   │   │   ├── migracheck/    ← app principal
-│   │   │   └── ui/            ← shadcn/ui
-│   │   ├── hooks/
+│   │   │   ├── migracheck/        ← pantallas principales
+│   │   │   │   ├── admin/         ← CuentasAgentes, Trazabilidad, etc.
+│   │   │   │   ├── agente/        ← CasosPendientes, HistorialDictamenes
+│   │   │   │   └── solicitante/   ← NuevaSolicitud, MisTramites, MarcoLegal
+│   │   │   └── ui/                ← shadcn/ui
 │   │   ├── lib/
-│   │   │   ├── api.ts         ← cliente HTTP
-│   │   │   └── utils.ts
-│   │   ├── main.tsx
-│   │   └── styles.css
-│   ├── index.html
-│   ├── vite.config.ts
-│   └── tsconfig.json
+│   │   │   └── api.ts             ← cliente HTTP hacia el backend
+│   │   └── vite-env.d.ts          ← tipos para import.meta.env y assets
+│   ├── .env.example
+│   ├── vite.config.ts             ← proxy /api → localhost:4000
+│   └── package.json
+├── scripts/
+│   └── import-interpol.ts         ← importa INTERPOL/OFAC desde OpenSanctions
 ├── infra/
-│   ├── docker-compose.yml
-│   └── initdb/001_initial.sql ← ejecutado automáticamente por Docker
-├── docs/
-└── scripts/
+│   └── docker-compose.yml         ← referencia histórica (ya no requerido)
+├── .mcp.json                      ← MCP server Supabase para Claude Code
+└── docs/
 ```
+
+---
+
+## Endpoints API
+
+| Método | Ruta | Rol | Story |
+|--------|------|-----|-------|
+| POST | `/api/auth/login` | Público | Auth |
+| POST | `/api/applications` | Público | SCRUM-33 |
+| GET | `/api/applications` | AGENTE/ADMIN | SCRUM-36 |
+| GET | `/api/applications/status` | Público | SCRUM-38 |
+| GET | `/api/applications/:id` | AGENTE/ADMIN | SCRUM-37 |
+| POST | `/api/applications/:id/verdict` | AGENTE/ADMIN | SCRUM-37 |
+| GET | `/api/audit-log` | ADMIN | SCRUM-39 |
 
 ---
 
@@ -116,7 +152,7 @@ npm run dev      # → http://localhost:5173
 
 ---
 
-## Scoring de Riesgo (RF04)
+## Motor de Scoring de Riesgo (RF04)
 
 | Factor | Puntos | Artículo |
 |--------|--------|----------|
@@ -128,114 +164,35 @@ Umbrales: `0–9` BAJO · `10–49` MEDIO · `50–100` ALTO
 
 ---
 
-## Endpoints API
+## Scripts Útiles
 
-| Método | Ruta | Rol | RF |
-|--------|------|-----|----|
-| POST | `/api/auth/login` | Público | Auth |
-| POST | `/api/applications` | Público | RF01, RF02, RF04 |
-| GET | `/api/applications` | AGENTE | RF05 |
-| GET | `/api/applications/:id` | AGENTE | RF05, RF06 |
-| POST | `/api/applications/:id/verdict` | AGENTE | RF06 |
-| GET | `/api/applications/status` | Público | RF03 |
-| GET | `/api/audit-log` | ADMIN | RF10 |
+```bash
+# Importar alertas INTERPOL/OFAC desde OpenSanctions (SCRUM-35)
+cd scripts
+npx ts-node import-interpol.ts
+```
 
 ---
 
-## Registro de Implementaciones (Sprint 1)
+## Registro de Implementaciones
 
-### SCRUM-29 — [SETUP] Stack tecnológico y monorepo
-**Responsable:** Bruno | **Estado:** ✅ Completado
+### Sprint 1 — Completado
 
-- Estructura de carpetas `backend/` y `frontend/`
-- `docker-compose.yml` con PostgreSQL 16
-- `tsconfig.json`, `.env.example`, `.editorconfig`, `.eslintrc.json`
-- Scripts base de `package.json`
-
----
-
-### SCRUM-30 — [BD] Migración SQL 001_initial.sql
-**Responsable:** Bruno | **Estado:** ✅ Completado
-
-Archivos creados:
-- `backend/src/db/migrations/001_initial.sql` — esquema completo
-- `infra/initdb/001_initial.sql` — ejecutado automáticamente por Docker al iniciar
-- `backend/src/db/pool.ts` — pool de conexiones PostgreSQL
-- `backend/src/db/migrate.ts` — script `npm run migrate`
-- `backend/src/db/seeds/seed.ts` — script `npm run seed`
-
-Tablas creadas:
-- `agentes` — usuarios del sistema (AGENTE / ADMIN)
-- `applications` — expedientes migratorios con todos los campos del RF01
-- `dictamenes` — decisiones del agente con artículo legal citado
-- `control_lists` — listas INTERPOL, OFAC SDN y países restringidos
-- `audit_log` — log inmutable WORM (Art. 6 DL3/2008)
-
-Datos precargados:
-- 27 países con atención especial según Dec. Ej. 521/2018, 196/2024 y 22/2025
-- Triggers WORM en `audit_log` (DELETE y UPDATE bloqueados)
-- Extensiones `pgcrypto` y `pg_trgm` para búsqueda fuzzy de nombres INTERPOL
-- Secuencia `ticket_seq` para generar `PAN-AAAA-NNNNN`
-
----
-
-### SCRUM-31 — [AUTH] JWT + middleware RBAC
-**Responsable:** Bruno | **Estado:** ✅ Completado
-
-Archivos creados:
-- `backend/src/middleware/auth.ts` — `requireAuth('AGENTE', 'ADMIN')` con verificación JWT → HTTP 401/403
-- `backend/src/routes/auth.ts` — `POST /api/auth/login` con bcrypt + registro en `audit_log`
-- `backend/src/index.ts` — servidor Express con proxy de `/uploads`
-
-Comportamiento:
-- Login exitoso → devuelve `{ token, rol, nombre }` + registra `LOGIN_EXITOSO`
-- Login fallido → HTTP 401 + registra `LOGIN_FALLIDO`
-- Token expirado/inválido → HTTP 401
-- Rol insuficiente → HTTP 403
-
----
-
-### SCRUM-32 — [RF01] Formulario Wizard de solicitud migratoria
-**Responsable:** Gerald | **Estado:** ✅ Completado
-
-Archivos modificados/creados:
-- `frontend/src/components/migracheck/solicitante/NuevaSolicitud.tsx` — wizard completo
-- `frontend/src/lib/api.ts` — cliente HTTP (`createApplication`, `login`, `getApplications`, etc.)
-- `frontend/src/components/migracheck/LoginView.tsx` — login real contra backend
-- `frontend/src/components/migracheck/MigraCheckApp.tsx` — sesión persistente con localStorage
-
-Frontend integrado (importado de `kelvinhe04/sidem-pan-portal`):
-- Config Lovable/Cloudflare reemplazada por Vite estándar
-- `vite.config.ts` con proxy `/api` → `localhost:4000`
-- `index.html`, `main.tsx`, `package.json`, `tsconfig.json`
-
-Wizard (3 pasos):
-- **Paso 1:** Nombres, Apellidos, Fecha nacimiento (≥18 años), Nacionalidad (65 países ISO), N° Pasaporte, Fecha vencimiento pasaporte, Categoría migratoria
-- **Paso 2:** Monto subsistencia (USD > 0), Comprobante solvencia PDF (≤5MB)
-- **Paso 3:** Certificado antecedentes penales PDF (≤5MB)
-
-Validaciones implementadas (CA-01 a CA-03):
-- CA-01: Bloquea si pasaporte vence en < 6 meses → mensaje exacto Art. 43 DL3/2008
-- CA-02: Bloquea si archivo no es PDF o supera 5MB → mensaje de error por campo
-- CA-03: Pantalla de confirmación con `#PAN-AAAA-NNNNN`, categoría y estado PENDIENTE
-
-Conecta a: `POST /api/applications` (SCRUM-33 — pendiente Eriel)
-
----
-
-## Pendientes Sprint 1
-
-| Story | Responsable | Descripción |
-|-------|------------|-------------|
-| SCRUM-33 | Eriel | `POST /api/applications` — validaciones backend + guardado en BD |
-| SCRUM-34 | Ana | Motor de scoring INTERPOL/OFAC/País restringido |
-| SCRUM-35 | Eriel | Script de importación INTERPOL desde OpenSanctions |
-| SCRUM-36 | Gerald | Dashboard agente — lista expedientes por riesgo |
-| SCRUM-37 | Ana | Pantalla dictamen + visor PDF |
-| SCRUM-38 | Gerald | Consulta pública de estado del trámite |
-| SCRUM-39 | Bruno | Servicio `logAction()` — auditoría WORM |
-| SCRUM-40 | Ana | Integración frontend-backend + 3 escenarios demo |
-| SCRUM-41 | Bruno | Deploy GCP Cloud Run / Azure con HTTPS |
+| Story | Responsable | Descripción | Estado |
+|-------|------------|-------------|--------|
+| SCRUM-29 | Bruno | Setup stack y monorepo | ✅ |
+| SCRUM-30 | Bruno | Migración SQL + BD Supabase | ✅ |
+| SCRUM-31 | Bruno | JWT auth + middleware RBAC | ✅ |
+| SCRUM-32 | Gerald | Formulario wizard de solicitud migratoria | ✅ |
+| SCRUM-33 | Eriel | `POST /api/applications` — validaciones + guardado en BD | ✅ |
+| SCRUM-34 | Ana | Motor de scoring INTERPOL/OFAC/País restringido | ✅ |
+| SCRUM-35 | Eriel | Script importación INTERPOL desde OpenSanctions | ✅ |
+| SCRUM-36 | Gerald | Dashboard agente — lista expedientes por riesgo | ✅ |
+| SCRUM-37 | Ana | Pantalla dictamen + visor PDF (URLs firmadas Supabase) | ✅ |
+| SCRUM-38 | Gerald | Consulta pública de estado del trámite | ✅ |
+| SCRUM-39 | Bruno | Servicio `logAction()` — auditoría WORM centralizado | ✅ |
+| SCRUM-40 | Ana | Integración frontend-backend con Supabase | ✅ |
+| SCRUM-41 | Bruno | Deploy GCP Cloud Run / Azure con HTTPS | Pendiente |
 
 ---
 
@@ -255,10 +212,3 @@ Conecta a: `POST /api/applications` (SCRUM-33 — pendiente Eriel)
 | CA-10 | Audit log muestra secuencia CREADO→SCORING→ABIERTO→DICTAMEN | RF10 |
 | CA-11 | Campos del solicitante son solo lectura para el agente | RF06 |
 | CA-12 | Acceso a dashboard sin JWT → 401 | RBAC |
-
----
-
-## Requisitos Locales
-
-- Node.js 20 (ver `.nvmrc`)
-- Docker y Docker Compose
