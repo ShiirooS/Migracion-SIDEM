@@ -123,3 +123,22 @@ export async function getAuditLog(params?: { fecha_desde?: string; fecha_hasta?:
   const qs = new URLSearchParams(params as Record<string, string>).toString();
   return request(`/audit-log${qs ? "?" + qs : ""}`);
 }
+
+// ─── Metrics ─────────────────────────────────────────────────────────────────
+
+export interface Metrics {
+  total: number;
+  hoy: number;
+  pendientes: number;
+  en_evaluacion: number;
+  resueltas: number;
+  aprobados: number;
+  rechazados: number;
+  por_estado: Record<string, number>;
+  por_riesgo: Record<string, number>;
+  por_categoria: Record<string, number>;
+}
+
+export async function getMetrics(): Promise<Metrics> {
+  return request<Metrics>("/metrics");
+}

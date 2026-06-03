@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/auth';
 import applicationRoutes from './routes/applications';
 import auditRoutes from './routes/audit';
+import metricsRoutes from './routes/metrics';
 
 dotenv.config();
 
@@ -16,6 +17,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/audit-log', auditRoutes);
+app.use('/api/metrics', metricsRoutes);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'SIDEM-PAN backend' });
