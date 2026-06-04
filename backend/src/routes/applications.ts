@@ -14,8 +14,15 @@ function generarTicket(): string {
   return `PAN-${year}-${num}`;
 }
 
+// Supabase Storage rechaza keys con espacios, acentos o caracteres especiales.
+// Normalizamos el nombre: quitamos diacríticos y reemplazamos lo no permitido.
+function sanitizarNombre(filename: string): string {
+  const base = filename.normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return base.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
 async function subirPDF(buffer: Buffer, filename: string): Promise<string> {
-  const path = `uploads/${Date.now()}-${filename}`;
+  const path = `uploads/${Date.now()}-${sanitizarNombre(filename)}`;
   const { error } = await supabase.storage.from('documents').upload(path, buffer, {
     contentType: 'application/pdf',
     upsert: false,

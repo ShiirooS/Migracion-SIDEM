@@ -3,11 +3,14 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "dev": "nodemon --watch src --ext ts --exec ts-node src/index.ts",
+    "dev": "nodemon --watch src --watch .env --ext ts,env --exec ts-node src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "migrate": "ts-node src/db/migrate.ts",
-    "seed": "ts-node src/db/seeds/seed.ts"
+    "seed": "ts-node src/db/seeds/seed.ts",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.107.0",
@@ -27,8 +30,14 @@
     "@types/multer": "^1.4.11",
     "@types/node": "^20.14.10",
     "@types/pg": "^8.11.6",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "eslint": "^8.57.1",
+    "eslint-plugin-security": "^3.0.1",
     "nodemon": "^3.1.4",
     "ts-node": "^10.9.2",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "vitest": "^2.1.9"
   }
 }
