@@ -57,6 +57,8 @@ find backend/src -name "*.ts" | xargs wc -l
 find frontend/src -name "*.tsx" -o -name "*.ts" | grep -v "/ui/" | xargs wc -l
 ```
 
+> **Validación con SonarCloud (`ncloc`).** El análisis automático reporta **3.412 líneas de código efectivas** (sin comentarios ni blancos), tras excluir la UI generada y los tests. Este conteo abarca el repositorio completo —no solo el código propio de aplicación de la tabla— e incluye además las 3 copias del schema SQL, los workflows de CI y el CSS. Distribución: `TypeScript 2.729 · SQL 442 · CSS 136 · YAML 89 · HTML 16`. La cercanía entre las 3.161 LOC brutas (`wc -l`) y las 3.412 `ncloc` confirma el orden de magnitud del tamaño base.
+
 ---
 
 ## 2. Métricas en Requerimientos (verificadas sobre la implementación)
@@ -261,13 +263,13 @@ grep -E "^import .* from '\.\.?/" backend/src/**/*.ts | grep -oE "from '[^']*'"
 | S2 | Función de 70 líneas | `risk-engine.ts:11` | ESLint |
 | S3 | Función de 51 líneas | `applications.ts:224` | ESLint |
 | S4 | Duplicación de 3 bloques de query casi idénticos a `control_lists` (violación DRY) | `risk-engine.ts:25-83` | Manual |
-| S5 | Migración SQL duplicada literal (192 líneas idénticas) | `backend/src/db/migrations/001_initial.sql` ≡ `supabase/migrations/2026…sql` | Manual / `diff` |
+| S5 | Schema SQL **triplicado** (138 líneas idénticas ×3, mismo `md5`) para 3 entornos | `backend/src/db/migrations/` ≡ `infra/initdb/` ≡ `supabase/migrations/` | `md5sum` + SonarCloud (14,1% duplicación) |
 | S6 | *Magic numbers* sin constantes nombradas (50, 40, 10; umbrales 50/10) | `risk-engine.ts` | Manual |
 | S7 | Generación de ticket con reintento no atómico (posible *race condition*) | `applications.ts:84-95` | Manual |
 
-**Análisis.** Predomina el *smell* de funciones largas, ligado directamente a la alta complejidad de §3.1. La duplicación SQL (S5) es riesgosa: dos fuentes de verdad del esquema que pueden divergir. Los *magic numbers* (S6) impiden trazar los pesos de scoring al requisito RF04 (consistente con el gap ya reportado en el Parcial 2).
+**Análisis.** Predomina el *smell* de funciones largas, ligado directamente a la alta complejidad de §3.1. La duplicación SQL (S5) es el hallazgo que SonarCloud cuantifica al **14,1%**: el schema existe **idéntico en 3 ubicaciones** porque cada una alimenta un entorno distinto (Docker init vía `infra/docker-compose.yml`, migración Node vía `npm run migrate`, y Supabase CLI). No es duplicación de código de aplicación sino de **aprovisionamiento de infraestructura**, pero implica el riesgo de que las 3 copias diverjan. Los *magic numbers* (S6) impiden trazar los pesos de scoring al requisito RF04 (consistente con el gap ya reportado en el Parcial 2). Nota: SonarCloud reporta **37 code smells** aplicando su catálogo completo de reglas; los 7 de esta tabla son los hallazgos estructurales priorizados por el equipo.
 
-**Acción de mejora.** Extraer helper `consultarLista()` (cierra S2 y S4); definir `const PESOS = { INTERPOL: 50, OFAC: 40, PAIS: 10 }` y `const UMBRALES = { ALTO: 50, MEDIO: 10 }` (S6); eliminar la migración duplicada dejando `supabase/migrations/` como única fuente (S5); convertir `ticket_number` en columna con restricción `UNIQUE` y delegar la unicidad a la BD en vez del bucle de reintentos (S7).
+**Acción de mejora.** Extraer helper `consultarLista()` (cierra S2 y S4); definir `const PESOS = { INTERPOL: 50, OFAC: 40, PAIS: 10 }` y `const UMBRALES = { ALTO: 50, MEDIO: 10 }` (S6); **no borrar** las 3 copias del schema (cada una es necesaria), sino generarlas desde una única fuente canónica (p. ej. un script que copie el archivo a los 3 destinos en CI) para eliminar la divergencia sin romper ningún entorno (S5); convertir `ticket_number` en columna con restricción `UNIQUE` y delegar la unicidad a la BD en vez del bucle de reintentos (S7).
 
 ### 4.2 Vulnerabilidades
 
@@ -289,7 +291,9 @@ grep -E "^import .* from '\.\.?/" backend/src/**/*.ts | grep -oE "from '[^']*'"
 | V6 | *Generic Object Injection Sink* (escritura con clave dinámica) | 🟢 Baja | `eslint-plugin-security` | `metrics.ts:27` (×2) |
 | V7 | `JWT_SECRET!` con *non-null assertion* → caída en runtime si falta la variable | 🟢 Baja | Manual | `auth.ts:31`, `auth route:38` |
 
-**Análisis.** El hallazgo más grave (V1) es a la vez un **defecto funcional**: un requisito de seguridad documentado (bloqueo por intentos) no está implementado pese a tener la dependencia instalada. V2 proviene de la cadena transitiva de `bcrypt` y se corrige con `npm audit fix`. V3–V5 son endurecimientos pendientes para producción.
+**Medición real (SonarCloud):** el análisis reporta **6 vulnerabilities** y **1 security hotspot**, lo que asigna un **Security Rating E** (el más bajo). SonarCloud aplica tolerancia cero: una sola vulnerabilidad ya degrada el rating a E. Estos hallazgos son consistentes con los de esta tabla (uso de `Math.random` para el ticket, validación débil de PDF, asserts no-null sobre variables de entorno) y refuerzan la prioridad de las acciones de mejora.
+
+**Análisis.** El hallazgo más grave (V1) es a la vez un **defecto funcional**: un requisito de seguridad documentado (bloqueo por intentos) no está implementado pese a tener la dependencia instalada. V2 proviene de la cadena transitiva de `bcrypt` y se corrige con `npm audit fix`. V3–V5 son endurecimientos pendientes para producción. El **Security Rating E** de SonarCloud confirma que la seguridad es el eje más débil del Sprint 1 y debe priorizarse en el Sprint 2.
 
 **Acción de mejora.** (1) Aplicar `express-rate-limit` en `/api/auth/login` (p.ej. 5 intentos / 15 min) y en `/api/applications/status`; (2) ejecutar `npm audit fix`; (3) restringir CORS a `VITE_API_URL`/dominio del SNM; (4) validar la firma binaria del PDF (`%PDF-1.x`), no solo el mimetype; (5) usar `crypto.randomInt()` para el ticket; (6) validar variables de entorno al arranque con un *guard* que aborte si falta `JWT_SECRET`.
 
@@ -370,9 +374,11 @@ File             | % Stmts | % Branch | % Funcs | % Lines
 | Rate limiting + CORS whitelist | 55 min |
 | **Deuda técnica total estimada** | **≈ 240 min (4 h)** |
 
-**Cálculo:** Costo de desarrollo = `3.161 × 30 min = 94.830 min`. `Debt Ratio = 240 / 94.830 ≈ 0,25 %` → **Rating de Mantenibilidad A** (Sonar: A si ≤ 5 %).
+**Cálculo (estimación manual):** Costo de desarrollo = `3.161 × 30 min = 94.830 min`. `Debt Ratio = 240 / 94.830 ≈ 0,25 %` → **Rating de Mantenibilidad A**.
 
-**Análisis.** Pese a las 4 funciones complejas, la deuda relativa es baja (0,25 %) porque el código base es pequeño y la mayoría de hallazgos son de remediación rápida. El riesgo real no está en la cantidad de deuda sino en su **concentración** en el núcleo de negocio (scoring y creación de expediente).
+**Medición real (SonarCloud):** el análisis automático reporta una deuda técnica (`sqale_index`) de **148 minutos (~2,5 h)** y un **Debt Ratio de 0,1 % → Rating de Mantenibilidad A**. La estimación manual del equipo (240 min) quedó en el mismo orden de magnitud que la herramienta (148 min) y **ambas coinciden en el Rating A**, validando la medición por triangulación (TMMi).
+
+**Análisis.** Pese a las 4 funciones complejas, la deuda relativa es baja (0,1 % real) porque el código base es pequeño y la mayoría de hallazgos son de remediación rápida. El riesgo real no está en la cantidad de deuda sino en su **concentración** en el núcleo de negocio (scoring y creación de expediente).
 
 **Acción de mejora.** Conectar SonarCloud al repositorio GitHub y agregar el escaneo a `ci.yml` con *Quality Gate* que bloquee merges si Debt Ratio > 5 % o si aparecen vulnerabilidades nuevas (cierra la acción ya propuesta en el Parcial 2 sobre monitoreo de CBO).
 
@@ -421,7 +427,30 @@ File             | % Stmts | % Branch | % Funcs | % Lines
 
 > Salidas reales reproducibles. Para el informe final adjuntar las **capturas** de cada comando ejecutado en terminal y de los dashboards (Jira, GitHub Actions, SonarCloud).
 
+### 6.0 Índice de capturas (qué imagen va dónde y cómo obtenerla)
+
+| Img | Qué muestra | Cómo / dónde se obtiene | Respalda |
+| :-: | :- | :- | :-: |
+| **1** | Warnings de complejidad ciclomática (19, 17, 16, 11) y smells | Terminal: `cd backend && npm run lint` | §3.1, §4.1 |
+| **2** | Pruebas Vitest 6/6 + cobertura 100% | Terminal: `cd backend && npm run test:coverage` | §4.4 |
+| **3** | Vulnerabilidad `tar` (2 high severity) | Terminal: `cd backend && npm audit` | §4.2 |
+| **4** | Imports internos / acoplamiento entre módulos | Terminal: `grep -rE "^import .* from '\.\.?/" backend/src` | §3.2 |
+| **5** | Conteo de líneas (KLOC) | Terminal: `find ... | xargs wc -l` (§1) | §1, §5.1 |
+| **6** | Commits y fechas (productividad) | Terminal: `git log --pretty=format:"%ad" --date=short | sort | uniq -c` | §5.2 |
+| **7** | **SonarCloud — Overview** (LOC, ratings, debt, duplicación) | Web: sonarcloud.io → proyecto `ShiirooS_Migracion-SIDEM` → pestaña **Overview** | §6.6, §8 |
+| **8** | **SonarCloud — Issues / Code Smells** (37) | Web: pestaña **Issues** → filtro *Code Smell* | §4.1 |
+| **9** | **SonarCloud — Security** (6 vulnerabilidades, Rating E) | Web: pestaña **Security Hotspots** / **Issues** → *Vulnerability* | §4.2 |
+| **10** | **SonarCloud — Complexity** | Web: **Measures → Complexity** | §3.1 |
+| **11** | **SonarCloud — Maintainability / Debt** (148 min, 0,1%) | Web: **Measures → Maintainability** | §4.5 |
+| **12** | **SonarCloud — Duplications** (14,1%, 3 copias SQL) | Web: **Measures → Duplications** | §4.1 |
+| **13** | **Tablero Jira/Kanban** (historias Done + To Do, bloqueos) | Web: tablero del proyecto en Jira | §7 |
+| **14** | **GitHub Actions** (workflows CI verdes) | Web: GitHub → pestaña **Actions** | §6.5 |
+
+> 📷 **Instrucción:** numera cada captura con estos IDs al pegarlas en el informe final (p. ej. *“Imagen 7 — Overview de SonarCloud”*), para que el lector las cruce con la sección indicada.
+
 ### 6.1 ESLint — complejidad + seguridad (`npm run lint`)
+
+> 📷 **Aquí va la Imagen 1** (salida de `npm run lint`).
 ```
 routes/applications.ts
   34:3   Async arrow function has a complexity of 19. Maximum allowed is 10   complexity
@@ -435,12 +464,16 @@ services/risk-engine.ts
 ```
 
 ### 6.2 Vitest — pruebas + cobertura (`npm run test:coverage`)
+
+> 📷 **Aquí va la Imagen 2** (salida de `npm run test:coverage`).
 ```
  ✓ src/services/risk-engine.test.ts (6 tests)
  Tests  6 passed (6)   |   risk-engine.ts: 100% stmts, 76.92% branch
 ```
 
 ### 6.3 npm audit — vulnerabilidades de dependencias (`npm audit`)
+
+> 📷 **Aquí va la Imagen 3** (salida de `npm audit`).
 ```
 tar  <=7.5.10  — Severity: high — Arbitrary File Write / Path Traversal
   @mapbox/node-pre-gyp (depende de tar vulnerable)
@@ -454,12 +487,32 @@ grep -E "^import .* from '\.\.?/" backend/src/**/*.ts | grep -oE "from '[^']*'"
 ```
 
 ### 6.5 GitHub Actions — CI existente
+
+> 📷 **Aquí va la Imagen 14** (pestaña Actions de GitHub con los workflows en verde).
 - `.github/workflows/ci.yml`: typecheck backend (`tsc --noEmit`), typecheck + build frontend.
 - `.github/workflows/db-migrations.yml`: migraciones automáticas a Supabase.
 - **Pendiente (acción de mejora):** añadir jobs de `npm run lint` y `npm test` como gates.
 
-### 6.6 SonarQube
-- `sonar-project.properties` creado (claves, fuentes, exclusiones, ruta de cobertura LCOV). Listo para `sonar-scanner`. Pendiente conectar servidor/token.
+### 6.6 SonarCloud — análisis ejecutado (dashboard real)
+
+> 📷 **Aquí van las Imágenes 7–12** (capturas del dashboard de SonarCloud: Overview, Code Smells, Security, Complexity, Maintainability y Duplications).
+
+Análisis ejecutado sobre el repositorio público en **SonarCloud** (proyecto `ShiirooS_Migracion-SIDEM`, organización `shiiroos`), excluyendo la UI generada por shadcn (`components/ui`) y los tests. Resultados reales del dashboard:
+
+| Indicador SonarCloud | Valor real | Rating |
+| :- | :-: | :-: |
+| Lines of Code (`ncloc`) | 3.412 | — |
+| Complexity (ciclomática total) | 418 | — |
+| Cognitive Complexity | 217 | — |
+| Bugs | 0 | 🟢 A |
+| Vulnerabilities | 6 | 🔴 E |
+| Security Hotspots | 1 | — |
+| Code Smells | 37 | 🟢 A |
+| Technical Debt | 148 min | — |
+| Debt Ratio | 0,1 % | 🟢 A |
+| Duplications | 14,1 % | — |
+
+> **Triangulación de herramientas:** los valores de SonarCloud **confirman** las mediciones independientes de ESLint y `npm audit`: la complejidad de `risk-engine.ts` (16) es idéntica en ambas herramientas; la deuda técnica (148 min Sonar vs 240 min estimados) coincide en Rating A; la duplicación (14,1%) cuantifica el smell S5; y las vulnerabilidades confirman §4.2. **Capturas a adjuntar:** Overview, Issues→Code Smells, Security→Vulnerabilities, Measures→Complexity, Measures→Maintainability (Debt) y Measures→Duplications.
 
 ### 6.7 Jira — tablero del proyecto
 - Épica “SIDEM-PAN — Debida Diligencia Migratoria” con historias SCRUM-33…SCRUM-40 (Sprint 1, Done) y SCRUM-41…SCRUM-50 derivadas de estas mediciones (§8). Adjuntar captura del tablero Kanban.
@@ -476,6 +529,8 @@ npm audit               # 6.3
 ---
 
 ## 7. Actualización del Backlog / Tablero Kanban
+
+> 📷 **Aquí va la Imagen 13** (captura del tablero Jira/Kanban mostrando historias *Done*, tareas *To Do* y bloqueos).
 
 ### 7.1 Sprint 1 — Completado (verificado en git)
 
@@ -527,7 +582,10 @@ npm audit               # 6.3
 | Código | Densidad de defectos | 2,2 def/KLOC | 🟡 |
 | Código | Debt ratio | ≈ 0,25 % (Rating A) | 🟢 |
 | Código | Pruebas (éxito / cobertura scoring) | 6/6 · 100 % stmts | 🟢 |
-| Clásicas | KLOC propias | 3,16 | — |
+| Clásicas | KLOC propias | 3,16 (Sonar: 3,41 `ncloc`) | — |
 | Clásicas | Productividad | ≈ 790 LOC/dev/sprint | 🟢 |
+| SonarCloud | Deuda técnica (real) | 148 min · Debt Ratio 0,1 % | 🟢 A |
+| SonarCloud | Security Rating | 6 vulnerabilidades | 🔴 E |
+| SonarCloud | Duplicación | 14,1 % (3 copias schema SQL) | 🟡 |
 
 **Conclusión.** El Sprint 1 entregó un MVP funcional e integrado con buena productividad, bajo acoplamiento (CBO 1,6, que valida el diseño del Parcial 2) y deuda técnica baja en términos relativos, pero con **riesgo concentrado en el núcleo de negocio**: las funciones de creación de expediente y scoring son las más complejas (M=19 y 16) y existen 3 vulnerabilidades de alta severidad, incluida una (rate limiting) que incumple un requisito de seguridad documentado. La medición sobre código **verificó las predicciones del Parcial 2** (volatilidad RF04/RF12, complejidad de UC3) y **cerró gaps de diseño** (creación del `MotorDeRiesgo`, cobertura real de RNF05). Las pruebas automáticas aportaron valor revelando un defecto de lógica de negocio (OFAC=MEDIO). El principal pendiente es la **trazabilidad hasta prueba** (16,7 %), que sube con `supertest`. El backlog del Sprint 2 queda priorizado por estas mediciones, cumpliendo el ciclo de mejora continua de TQM.
