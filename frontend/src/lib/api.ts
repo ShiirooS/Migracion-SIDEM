@@ -127,6 +127,27 @@ export async function getAuditLog(params?: { fecha_desde?: string; fecha_hasta?:
   return request(`/audit-log${qs ? "?" + qs : ""}`);
 }
 
+// ─── Agentes ─────────────────────────────────────────────────────────────────
+
+export interface Agente {
+  id: string;
+  nombre_completo: string;
+  email: string;
+  rol: "AGENTE" | "ADMIN";
+}
+
+export async function getAgentes(): Promise<Agente[]> {
+  return request<Agente[]>("/agentes");
+}
+
+export async function assignAgent(applicationId: string, agente_id: string) {
+  return request(`/applications/${applicationId}/assign`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ agente_id }),
+  });
+}
+
 // ─── Metrics ─────────────────────────────────────────────────────────────────
 
 export interface Metrics {

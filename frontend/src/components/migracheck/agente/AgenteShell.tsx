@@ -8,6 +8,7 @@ import { ColaExpedientes } from "./ColaExpedientes";
 import { ExpedienteDetalle } from "./ExpedienteDetalle";
 import { AuditLogViewer } from "./AuditLogViewer";
 import { MetricasSNM } from "./MetricasSNM";
+import { AsignacionExpedientes } from "./AsignacionExpedientes";
 import { cn } from "@/lib/utils";
 
 interface Session {
@@ -21,7 +22,7 @@ interface Props {
   onLogout: () => void;
 }
 
-type View = "cola" | "detalle" | "historial" | "auditoria" | "metricas";
+type View = "cola" | "detalle" | "historial" | "auditoria" | "metricas" | "asignacion";
 
 const NAV_AGENTE = [
   { id: "cola" as View, label: "Cola de expedientes", icon: Inbox },
@@ -29,6 +30,7 @@ const NAV_AGENTE = [
 ];
 
 const NAV_ADMIN = [
+  { id: "asignacion" as View, label: "Asignar expedientes", icon: ClipboardCheck },
   { id: "auditoria" as View, label: "Auditoría WORM", icon: Shield },
   { id: "metricas" as View, label: "Métricas SNM", icon: BarChart3 },
 ];
@@ -65,6 +67,8 @@ export function AgenteShell({ session, onLogout }: Props) {
         return <AuditLogViewer />;
       case "metricas":
         return <MetricasSNM />;
+      case "asignacion":
+        return <AsignacionExpedientes />;
     }
   }
 
@@ -74,6 +78,7 @@ export function AgenteShell({ session, onLogout }: Props) {
     historial: "Historial de dictámenes",
     auditoria: "Log de auditoría WORM",
     metricas: "Métricas operativas SNM",
+    asignacion: "Asignación de expedientes",
   }[view];
 
   return (

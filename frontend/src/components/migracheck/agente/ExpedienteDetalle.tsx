@@ -226,30 +226,43 @@ export function ExpedienteDetalle({ applicationId, onVolver }: Props) {
 
             <div className="space-y-1.5">
               <Label>Artículo legal citado <span className="text-danger">*</span></Label>
-              <Input
-                placeholder="Ej. Art. 50 Num. 4 DL3/2008"
-                value={articulo}
-                onChange={(e) => setArticulo(e.target.value)}
-              />
+              <Select value={articulo} onValueChange={setArticulo}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccione el artículo aplicable..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Art. 28 DL3/2008">Art. 28 — Aprobación de ingreso</SelectItem>
+                  <SelectItem value="Art. 43 Num. 2 DL3/2008">Art. 43 Num. 2 — Pasaporte inválido o vencido</SelectItem>
+                  <SelectItem value="Art. 50 Num. 1 DL3/2008">Art. 50 Num. 1 — Insolvencia económica</SelectItem>
+                  <SelectItem value="Art. 50 Num. 4 DL3/2008">Art. 50 Num. 4 — Antecedentes penales internacionales</SelectItem>
+                  <SelectItem value="Art. 50 Num. 5 DL3/2008">Art. 50 Num. 5 — Riesgo a la seguridad nacional</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">
-              <Label>Justificación <span className="text-danger">*</span></Label>
+              <Label>
+                Justificación <span className="text-danger">*</span>
+                <span className={cn("ml-2 text-xs font-normal", justificacion.trim().length < 20 ? "text-danger" : "text-muted-foreground")}>
+                  ({justificacion.trim().length}/20 mín.)
+                </span>
+              </Label>
               <Textarea
                 rows={4}
-                placeholder="Detalle la fundamentación jurídica de la decisión..."
+                placeholder="Detalle la fundamentación jurídica de la decisión (mínimo 20 caracteres)..."
                 value={justificacion}
                 onChange={(e) => setJustificacion(e.target.value)}
+                className={cn(justificacion.trim().length > 0 && justificacion.trim().length < 20 && "border-danger")}
               />
             </div>
 
             <div className="flex gap-3 pt-2">
               <Button
-                disabled={submitting || !decision}
+                disabled={submitting || !decision || !articulo || justificacion.trim().length < 20}
                 className={cn(
                   decision === "APROBADO" && "bg-success text-white hover:bg-success/90",
                   decision === "RECHAZADO" && "bg-danger text-white hover:bg-danger/90",
-                  !decision && "opacity-50",
+                  (!decision || !articulo || justificacion.trim().length < 20) && "opacity-50",
                 )}
                 onClick={handleVerdict}
               >
