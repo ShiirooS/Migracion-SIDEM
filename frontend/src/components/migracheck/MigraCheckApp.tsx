@@ -2,6 +2,7 @@ import { useState } from "react";
 import { LoginView } from "./LoginView";
 import { SolicitudFlow } from "./solicitante/SolicitudFlow";
 import { ConsultaEstado } from "./solicitante/ConsultaEstado";
+import { SubsanarDocumentos } from "./solicitante/SubsanarDocumentos";
 import { AgenteShell } from "./agente/AgenteShell";
 import { getSession, logout, type LoginResponse } from "@/lib/api";
 
@@ -20,7 +21,7 @@ function restoreSession(): Session | null {
   return { token, rol: session.rol, nombre: session.nombre };
 }
 
-type PublicView = "login" | "solicitud" | "consulta";
+type PublicView = "login" | "solicitud" | "consulta" | "subsanar";
 
 export function MigraCheckApp() {
   const [session, setSession] = useState<Session | null>(restoreSession);
@@ -46,7 +47,11 @@ export function MigraCheckApp() {
   }
 
   if (publicView === "consulta") {
-    return <ConsultaEstado onVolver={() => setPublicView("login")} />;
+    return <ConsultaEstado onVolver={() => setPublicView("login")} onSubsanar={() => setPublicView("subsanar")} />;
+  }
+
+  if (publicView === "subsanar") {
+    return <SubsanarDocumentos onVolver={() => setPublicView("login")} />;
   }
 
   return (

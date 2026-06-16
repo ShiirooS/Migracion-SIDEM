@@ -202,7 +202,7 @@ router.get('/status', async (req: Request, res: Response): Promise<void> => {
 
     const { data, error } = await supabase
       .from('applications')
-      .select('ticket_number,estado,nivel_riesgo,categoria_migratoria,created_at,razon_subsanacion,fecha_subsanacion_solicitada')
+      .select('id,ticket_number,estado,nivel_riesgo,categoria_migratoria,created_at,razon_subsanacion,fecha_subsanacion_solicitada')
       .eq('ticket_number', ticket)
       .eq('numero_pasaporte', pasaporte)
       .single();
@@ -438,6 +438,11 @@ router.post(
 
       const solvenciaFile = files?.comprobante_solvencia?.[0];
       const antecedentesFile = files?.antecedentes_penales?.[0];
+
+      if (!solvenciaFile && !antecedentesFile) {
+        res.status(400).json({ error: 'Debe subir al menos un documento corregido' });
+        return;
+      }
 
       if (solvenciaFile) {
         if (solvenciaFile.mimetype !== 'application/pdf') {

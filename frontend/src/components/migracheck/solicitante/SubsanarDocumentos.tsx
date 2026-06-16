@@ -54,7 +54,7 @@ export function SubsanarDocumentos({ onVolver }: Props) {
         setError("Este expediente no está en estado de subsanación. Si tiene dudas, comuníquese con la SNM.");
         return;
       }
-      setApplicationId(data.ticket_number);
+      setApplicationId(data.id);
       setRazonSubsanacion(data.razon_subsanacion);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {

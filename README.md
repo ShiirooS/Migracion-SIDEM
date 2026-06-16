@@ -49,6 +49,8 @@ SUPABASE_URL=https://wlzrvuwuhbtrjobcarar.supabase.co
 SUPABASE_SERVICE_KEY=<service_role key — ver Dashboard Supabase>
 JWT_SECRET=change_me_to_a_strong_secret
 JWT_EXPIRES_IN=15m
+RESEND_API_KEY=re_your_resend_api_key_here
+RESEND_FROM_EMAIL=SIDEM-PAN <notificaciones@sidem-pan.gob.pa>
 ```
 
 Para obtener `SUPABASE_SERVICE_KEY`:
@@ -100,6 +102,27 @@ Abrir el navegador en **http://localhost:5173**
 4. Al finalizar se genera un ticket `#PAN-AAAA-NNNNN`
 5. **Consultar estado de trámite** → ingresar ticket + pasaporte
 
+### Flujo de Subsanación (RF07)
+Cuando un agente detecta un documento ilegible o insuficiente:
+
+**Agente:**
+1. Abre el expediente en estado `EN_EVALUACION`
+2. Hace clic en **"Solicitar subsanación"**
+3. Indica qué documento necesita y por qué
+4. El sistema cambia el estado a `SUBSANACION_PENDIENTE` y envía un email al solicitante
+
+**Solicitante:**
+1. Recibe un email con las instrucciones
+2. Consulta el estado con ticket + pasaporte
+3. Ve el mensaje **"Qué debe corregir"** con la razón detallada
+4. Hace clic en **"Subir documentos corregidos"**
+5. Sube los PDFs corregidos (solvencia y/o antecedentes)
+6. El expediente vuelve a `EN_EVALUACION` automáticamente
+
+**Agente (continuación):**
+7. Ve el expediente de vuelta en su cola con los documentos actualizados
+8. Continúa con el dictamen normalmente
+
 ### Agente de Cumplimiento (login con rol AGENTE)
 1. Tab **"Acceso Institucional"** → ingresar credenciales
 2. **Cola de expedientes** — lista ordenada por score de riesgo (ALTO primero), con badges de alerta INTERPOL/OFAC
@@ -123,6 +146,8 @@ Todo lo del Agente, más:
 | GET | `/api/applications/status` | Público | SCRUM-38 |
 | GET | `/api/applications/:id` | AGENTE / ADMIN | SCRUM-37 |
 | POST | `/api/applications/:id/verdict` | AGENTE / ADMIN | SCRUM-37 |
+| POST | `/api/applications/:id/request-subsanacion` | AGENTE / ADMIN | RF07 |
+| POST | `/api/applications/:id/subsanar` | Público | RF07 |
 | GET | `/api/audit-log` | ADMIN | SCRUM-39 |
 | GET | `/api/metrics` | ADMIN | SCRUM-40 |
 | GET | `/health` | Público | — |
@@ -144,7 +169,8 @@ Todo lo del Agente, más:
 │   │   │   └── metrics.ts             ← GET /api/metrics (admin)
 │   │   ├── services/
 │   │   │   ├── audit.ts               ← logAction() centralizado
-│   │   │   └── risk-engine.ts         ← calcularRiesgo() INTERPOL/OFAC/País
+│   │   │   ├── risk-engine.ts         ← calcularRiesgo() INTERPOL/OFAC/País
+│   │   │   └── notifications.ts       ← enviarNotificacion() con Resend
 │   │   └── index.ts                   ← servidor Express
 │   ├── .env.example
 │   └── package.json
@@ -157,12 +183,14 @@ Todo lo del Agente, más:
 │   │   │   │   ├── AgenteShell.tsx     ← shell con sidebar y navegación
 │   │   │   │   ├── ColaExpedientes.tsx ← lista con filtros y badges de riesgo
 │   │   │   │   ├── ExpedienteDetalle.tsx ← detalle + formulario de dictamen
+│   │   │   │   ├── SubsanacionAgente.tsx ← formulario solicitar subsanación
 │   │   │   │   ├── AuditLogViewer.tsx  ← visor log WORM con filtros
 │   │   │   │   └── MetricasSNM.tsx     ← dashboard de métricas
 │   │   │   └── solicitante/
 │   │   │       ├── SolicitudFlow.tsx   ← wrapper del wizard
 │   │   │       ├── NuevaSolicitud.tsx  ← wizard 3 pasos
-│   │   │       └── ConsultaEstado.tsx  ← consulta pública por ticket+pasaporte
+│   │   │       ├── ConsultaEstado.tsx  ← consulta pública por ticket+pasaporte
+│   │   │       └── SubsanarDocumentos.tsx ← pantalla pública subsanar documentos
 │   │   └── lib/api.ts                  ← cliente HTTP hacia el backend
 │   ├── .env.example
 │   └── package.json
@@ -229,3 +257,5 @@ Umbrales: `0–9` **BAJO** · `10–49` **MEDIO** · `≥50` **ALTO**
 | SCRUM-38 | Consulta pública de estado por ticket + pasaporte | ✅ |
 | SCRUM-39 | Log de auditoría WORM con triggers SQL anti-DELETE/UPDATE | ✅ |
 | SCRUM-40 | Métricas operativas SNM — endpoint admin + dashboard frontend | ✅ |
+| RF07 | Flujo de subsanación de documentos — nuevo estado + pantalla solicitante | ✅ |
+| RF08 | Notificaciones email con Resend — DKIM automático + email_logs | ✅ |

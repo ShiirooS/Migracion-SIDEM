@@ -100,8 +100,8 @@ export async function createApplication(formData: FormData): Promise<{ ticket_nu
   });
 }
 
-export async function getApplicationStatus(pasaporte: string, ticket: string) {
-  return request(`/applications/status?pasaporte=${encodeURIComponent(pasaporte)}&ticket=${encodeURIComponent(ticket)}`);
+export async function getApplicationStatus(pasaporte: string, ticket: string): Promise<StatusResult> {
+  return request<StatusResult>(`/applications/status?pasaporte=${encodeURIComponent(pasaporte)}&ticket=${encodeURIComponent(ticket)}`);
 }
 
 // ─── Verdicts ─────────────────────────────────────────────────────────────────
@@ -144,4 +144,42 @@ export interface Metrics {
 
 export async function getMetrics(): Promise<Metrics> {
   return request<Metrics>("/metrics");
+}
+
+// ─── Subsanación (RF07) ─────────────────────────────────────────────────────
+
+export interface StatusResult {
+  id: string;
+  ticket_number: string;
+  estado: string;
+  nivel_riesgo: string | null;
+  categoria_migratoria: string;
+  created_at: string;
+  razon_subsanacion: string | null;
+  fecha_subsanacion_solicitada: string | null;
+}
+
+export async function requestSubsanacion(applicationId: string, razon: string): Promise<{ ok: boolean; estado: string }> {
+  return request(`/applications/${applicationId}/request-subsanacion`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ razon }),
+  });
+}
+
+export async function subsanarDocumentos(applicationId: string, data: {
+  ticket_number: string;
+  numero_pasaporte: string;
+  comprobante_solvencia?: File;
+  antecedentes_penales?: File;
+}): Promise<{ ok: boolean; ticket_number: string; estado: string }> {
+  const fd = new FormData();
+  fd.append("ticket_number", data.ticket_number);
+  fd.append("numero_pasaporte", data.numero_pasaporte);
+  if (data.comprobante_solvencia) fd.append("comprobante_solvencia", data.comprobante_solvencia);
+  if (data.antecedentes_penales) fd.append("antecedentes_penales", data.antecedentes_penales);
+  return request(`/applications/${applicationId}/subsanar`, {
+    method: "POST",
+    body: fd,
+  });
 }
