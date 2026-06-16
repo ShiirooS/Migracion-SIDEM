@@ -212,7 +212,12 @@ router.post(
 
 // ── GET /api/applications — RF05 (agente/admin) ───────────────────────────────
 router.get('/', requireAuth('AGENTE', 'ADMIN'), async (req: Request, res: Response): Promise<void> => {
-  const { estado } = req.query as { estado?: string };
+  const { estado, agente_id, grupo } = req.query as { estado?: string; agente_id?: string; grupo?: string };
+
+  const GRUPOS: Record<string, string[]> = {
+    ACTIVOS: ['PENDIENTE', 'EN_EVALUACION', 'SUBSANACION_PENDIENTE'],
+    RESUELTOS: ['APROBADO', 'RECHAZADO'],
+  };
 
   let query = supabase
     .from('applications')
@@ -220,7 +225,12 @@ router.get('/', requireAuth('AGENTE', 'ADMIN'), async (req: Request, res: Respon
     .order('score_riesgo', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
 
-  if (estado) query = query.eq('estado', estado);
+  if (estado) {
+    query = query.eq('estado', estado);
+  } else if (grupo && GRUPOS[grupo]) {
+    query = query.in('estado', GRUPOS[grupo]);
+  }
+  if (agente_id) query = query.eq('agente_asignado_id', agente_id);
 
   const { data, error } = await query;
   if (error) { res.status(500).json({ error: error.message }); return; }
@@ -349,8 +359,22 @@ router.post('/:id/verdict', requireAuth('AGENTE', 'ADMIN'), async (req: Request,
   }
 
   try {
-    const { data: app, error: appError } = await supabase.from('applications').select('id,estado').eq('id', id).single();
+    const { data: app, error: appError } = await supabase
+      .from('applications')
+      .select('id,estado,agente_asignado_id')
+      .eq('id', id)
+      .single();
     if (appError || !app) { res.status(404).json({ error: 'Expediente no encontrado' }); return; }
+
+    if (!['PENDIENTE', 'EN_EVALUACION'].includes(app.estado)) {
+      res.status(422).json({ error: 'El expediente no está en un estado que permita dictamen' });
+      return;
+    }
+
+    if (req.user!.rol === 'AGENTE' && app.agente_asignado_id !== req.user!.id) {
+      res.status(403).json({ error: 'Solo el agente asignado puede emitir un dictamen' });
+      return;
+    }
 
     const [{ error: dictError }, { error: updateError }] = await Promise.all([
       supabase.from('dictamenes').insert({

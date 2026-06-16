@@ -34,10 +34,12 @@ interface AppDetail {
   interpol_alerta_detalle: string | null;
   url_solvencia: string | null;
   url_antecedentes: string | null;
+  agente_asignado_id: string | null;
 }
 
 interface Props {
   applicationId: string;
+  session: { rol: "AGENTE" | "ADMIN"; id: string };
   onVolver: () => void;
 }
 
@@ -48,7 +50,7 @@ const ESTADO_COLOR: Record<string, string> = {
   RECHAZADO: "bg-danger/15 text-danger",
 };
 
-export function ExpedienteDetalle({ applicationId, onVolver }: Props) {
+export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
   const [app, setApp] = useState<AppDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +92,7 @@ export function ExpedienteDetalle({ applicationId, onVolver }: Props) {
       setSubmitted(true);
       const updated = await getApplication(applicationId) as unknown as AppDetail;
       setApp(updated);
+      setTimeout(() => onVolver(), 2000);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error al emitir dictamen");
     } finally {
@@ -97,7 +100,15 @@ export function ExpedienteDetalle({ applicationId, onVolver }: Props) {
     }
   }
 
-  const puedeEmitir = app && ["PENDIENTE", "EN_EVALUACION"].includes(app.estado) && !submitted;
+  const esAsignado =
+    session.rol === "ADMIN" ||
+    (app?.agente_asignado_id != null && app.agente_asignado_id === session.id);
+
+  const puedeEmitir =
+    app != null &&
+    ["PENDIENTE", "EN_EVALUACION"].includes(app.estado) &&
+    !submitted &&
+    esAsignado;
 
   if (loading) {
     return (
@@ -202,6 +213,14 @@ export function ExpedienteDetalle({ applicationId, onVolver }: Props) {
           </CardContent>
         </Card>
       </div>
+
+      {!esAsignado && !submitted && app && ["PENDIENTE", "EN_EVALUACION"].includes(app.estado) && (
+        <Alert className="border-border bg-muted/50">
+          <AlertDescription className="text-muted-foreground text-sm">
+            Este expediente está asignado a otro agente. Solo el agente asignado puede emitir el dictamen.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {puedeEmitir && (
         <Card className="border-institutional/30">

@@ -11,13 +11,14 @@ interface Session {
   token: string;
   rol: Rol;
   nombre: string;
+  id: string;
 }
 
 function restoreSession(): Session | null {
   const session = getSession();
   const token = localStorage.getItem("sidem_token");
-  if (!session || !token) return null;
-  return { token, rol: session.rol, nombre: session.nombre };
+  if (!session || !token || !session.id) return null;
+  return { token, rol: session.rol, nombre: session.nombre, id: session.id };
 }
 
 type PublicView = "login" | "solicitud" | "consulta";
@@ -27,7 +28,7 @@ export function MigraCheckApp() {
   const [publicView, setPublicView] = useState<PublicView>("login");
 
   function handleLogin(data: LoginResponse) {
-    setSession({ token: data.token, rol: data.rol, nombre: data.nombre });
+    setSession({ token: data.token, rol: data.rol, nombre: data.nombre, id: data.id });
     setPublicView("login");
   }
 
