@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { supabase } from '../lib/supabase';
@@ -17,7 +18,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 
 function generarTicket(): string {
   const year = new Date().getFullYear();
-  const num = Math.floor(Math.random() * 99999).toString().padStart(5, '0');
+  const num = crypto.randomInt(0, 99999).toString().padStart(5, '0');
   return `PAN-${year}-${num}`;
 }
 
@@ -59,9 +60,16 @@ router.post(
       return;
     }
 
+    const EMAIL_RE_BE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (correo_electronico && !EMAIL_RE_BE.test(correo_electronico.trim())) {
+      res.status(400).json({ error: 'Formato de correo electrónico inválido' });
+      return;
+    }
+
     const venc = new Date(vencimiento_pasaporte);
     const sixMonths = new Date();
-    sixMonths.setMonth(sixMonths.getMonth() + 6);
+    sixMonths.setMonth(sixMonths.getMonth() + 6, 1);
+    sixMonths.setDate(0);
     if (venc < sixMonths) {
       res.status(422).json({
         error: 'El pasaporte debe tener al menos 6 meses de vigencia (Art. 43, Decreto Ley 3 de 2008)',
@@ -142,7 +150,7 @@ router.post(
 
       if (correo_electronico && correo_electronico.trim()) {
         const tmpl = templateExpedienteCreado(ticket_number, app.categoria_migratoria);
-        enviarNotificacion({
+        await enviarNotificacion({
           to: correo_electronico.trim().toLowerCase(),
           subject: tmpl.subject,
           html: tmpl.html,
@@ -157,6 +165,12 @@ router.post(
         categoria_migratoria: app.categoria_migratoria,
       });
     } catch (err: unknown) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          res.status(413).json({ error: 'Los archivos no deben superar 5MB' });
+          return;
+        }
+      }
       console.error('POST /applications error:', err);
       res.status(500).json({ error: 'Error interno del servidor' });
     }
@@ -287,19 +301,29 @@ router.post('/:id/verdict', requireAuth('AGENTE', 'ADMIN'), async (req: Request,
       return;
     }
 
-    const [{ error: dictError }, { error: updateError }] = await Promise.all([
-      supabase.from('dictamenes').insert({
+    const { data: dictamen, error: dictError } = await supabase
+      .from('dictamenes')
+      .insert({
         expediente_id: id,
         agente_id: req.user!.id,
         decision,
         articulo_citado,
         justificacion,
-      }),
-      supabase.from('applications').update({ estado: decision }).eq('id', id),
-    ]);
+      })
+      .select()
+      .single();
 
     if (dictError) throw dictError;
-    if (updateError) throw updateError;
+
+    const { error: updateError } = await supabase
+      .from('applications')
+      .update({ estado: decision })
+      .eq('id', id);
+
+    if (updateError) {
+      await supabase.from('dictamenes').delete().eq('id', dictamen!.id);
+      throw updateError;
+    }
 
     await logAction({
       accion: 'DICTAMEN_EMITIDO',
@@ -313,7 +337,7 @@ router.post('/:id/verdict', requireAuth('AGENTE', 'ADMIN'), async (req: Request,
       const tmpl = decision === 'APROBADO'
         ? templateDictamenAprobado(articulo_citado)
         : templateDictamenRechazado(articulo_citado, justificacion);
-      enviarNotificacion({
+      await enviarNotificacion({
         to: app.email_solicitante,
         subject: tmpl.subject,
         html: tmpl.html,
@@ -378,7 +402,7 @@ router.post('/:id/request-subsanacion', requireAuth('AGENTE', 'ADMIN'), async (r
 
     if (app.email_solicitante) {
       const tmpl = templateSubsanacionPendiente(razon.trim(), app.ticket_number);
-      enviarNotificacion({
+      await enviarNotificacion({
         to: app.email_solicitante,
         subject: tmpl.subject,
         html: tmpl.html,

@@ -59,7 +59,13 @@ export function saveSession(data: LoginResponse) {
 
 export function getSession(): { rol: "AGENTE" | "ADMIN"; nombre: string } | null {
   const raw = localStorage.getItem("sidem_user");
-  return raw ? JSON.parse(raw) : null;
+  try {
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    localStorage.removeItem("sidem_user");
+    localStorage.removeItem("sidem_token");
+    return null;
+  }
 }
 
 // ─── Applications ─────────────────────────────────────────────────────────────
@@ -82,6 +88,13 @@ export interface Application {
   fecha_nacimiento: string;
   vencimiento_pasaporte: string;
   monto_subsistencia: string;
+}
+
+export interface ApplicationDetail extends Application {
+  url_solvencia: string | null;
+  url_antecedentes: string | null;
+  razon_subsanacion: string | null;
+  fecha_subsanacion_solicitada: string | null;
 }
 
 export async function getApplications(params?: { estado?: string }): Promise<Application[]> {

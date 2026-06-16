@@ -28,7 +28,12 @@ export function requireAuth(...roles: Array<'AGENTE' | 'ADMIN'>) {
     const token = authHeader.slice(7);
 
     try {
-      const payload = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
+      const secret = process.env.JWT_SECRET;
+      if (!secret) {
+        res.status(500).json({ error: 'Servidor mal configurado' });
+        return;
+      }
+      const payload = jwt.verify(token, secret) as JwtPayload;
 
       if (roles.length > 0 && !roles.includes(payload.rol)) {
         res.status(403).json({ error: 'No tienes permisos para esta acción' });

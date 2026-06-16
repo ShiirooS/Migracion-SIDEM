@@ -253,7 +253,7 @@ export function NuevaSolicitud() {
   // ─── Envío ───────────────────────────────────────────────────────────────────
 
   async function handleSubmit() {
-    const errs = validarPaso2();
+    const errs = { ...validarPaso0(), ...validarPaso1(), ...validarPaso2() };
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
 
     setSubmitError(null);
