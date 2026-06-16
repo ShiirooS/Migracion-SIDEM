@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getControlLists } from './control-lists-cache';
 
 export interface RiskResult {
   score: number;
@@ -8,10 +9,16 @@ export interface RiskResult {
   interpol_alerta_detalle: string | null;
 }
 
-// Similitud de trigramas en TypeScript (equivalente a pg_trgm similarity)
+// Trigram similarity in TypeScript — equivalent to pg_trgm similarity()
 function trigramSimilarity(a: string, b: string): number {
   const normalize = (s: string) =>
-    s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+    s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9 ]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
 
   const na = normalize(a);
   const nb = normalize(b);
@@ -31,6 +38,13 @@ function trigramSimilarity(a: string, b: string): number {
   return (2 * intersection) / (ta.size + tb.size);
 }
 
+interface ControlListRow {
+  numero_pasaporte?: string | null;
+  descripcion_alerta?: string | null;
+  codigo_pais?: string | null;
+  nombre_completo?: string | null;
+}
+
 export async function calcularRiesgo(params: {
   nombres: string;
   apellidos: string;
@@ -44,24 +58,26 @@ export async function calcularRiesgo(params: {
 
   const nombreCompleto = `${params.nombres} ${params.apellidos}`;
 
-  // ── Factor 1: INTERPOL Red Notice (50 pts) ─────────────────────────────────
-  // Primero por pasaporte exacto
-  const { data: interpolPasaporte } = await supabase
-    .from('control_lists')
-    .select('*')
-    .eq('tipo_lista', 'INTERPOL_RED_NOTICE')
-    .eq('numero_pasaporte', params.numero_pasaporte)
-    .eq('activo', true)
-    .limit(1);
+  // SCRUM-52: Use cached lists for exact-match lookups (avoids repeated full-table reads)
+  const [interpolRows, ofacRows, paisRows] = await Promise.all([
+    getControlLists('INTERPOL_RED_NOTICE') as Promise<ControlListRow[]>,
+    getControlLists('OFAC_SDN') as Promise<ControlListRow[]>,
+    getControlLists('PAIS_RESTRINGIDO') as Promise<ControlListRow[]>,
+  ]);
 
-  if (interpolPasaporte && interpolPasaporte.length > 0) {
+  // Factor 1: INTERPOL Red Notice (50 pts) — exact passport match from cache
+  const interpolPasaporte = interpolRows.filter(
+    (r) => r.numero_pasaporte === params.numero_pasaporte
+  );
+
+  if (interpolPasaporte.length > 0) {
     score += 50;
     interpol_alerta_encontrada = true;
     interpol_alerta_tipo = 'INTERPOL_RED_NOTICE';
     interpol_alerta_detalle = interpolPasaporte[0].descripcion_alerta ?? 'Red Notice encontrada';
   }
 
-  // Si no hubo match por pasaporte, buscar por similitud de nombre en TypeScript
+  // Factor 1 fallback: fuzzy name match with trigram similarity
   if (!interpol_alerta_encontrada) {
     const { data: interpolRecords } = await supabase
       .from('control_lists')
@@ -88,25 +104,17 @@ export async function calcularRiesgo(params: {
     }
   }
 
-  // ── Factor 2: OFAC SDN (40 pts) ────────────────────────────────────────────
-  // Por pasaporte exacto
-  const { data: ofacPasaporte } = await supabase
-    .from('control_lists')
-    .select('*')
-    .eq('tipo_lista', 'OFAC_SDN')
-    .eq('numero_pasaporte', params.numero_pasaporte)
-    .eq('activo', true)
-    .limit(1);
-
-  if (ofacPasaporte && ofacPasaporte.length > 0) {
+  // Factor 2: OFAC SDN (40 pts) — exact passport match from cache
+  const ofacMatch = ofacRows.filter((r) => r.numero_pasaporte === params.numero_pasaporte);
+  if (ofacMatch.length > 0) {
     score += 40;
     if (!interpol_alerta_encontrada) {
       interpol_alerta_encontrada = true;
       interpol_alerta_tipo = 'OFAC_SDN';
-      interpol_alerta_detalle = ofacPasaporte[0].descripcion_alerta ?? 'Lista SDN OFAC';
+      interpol_alerta_detalle = ofacMatch[0].descripcion_alerta ?? 'Lista SDN OFAC';
     }
   } else {
-    // Por similitud de nombre
+    // OFAC fallback: fuzzy name match
     const { data: ofacRecords } = await supabase
       .from('control_lists')
       .select('nombre_completo, descripcion_alerta')
@@ -131,16 +139,9 @@ export async function calcularRiesgo(params: {
     }
   }
 
-  // ── Factor 3: País restringido (10 pts) ────────────────────────────────────
-  const { data: paisRestringido } = await supabase
-    .from('control_lists')
-    .select('descripcion_alerta')
-    .eq('tipo_lista', 'PAIS_RESTRINGIDO')
-    .eq('codigo_pais', params.nacionalidad_codigo)
-    .eq('activo', true)
-    .limit(1);
-
-  if (paisRestringido && paisRestringido.length > 0) {
+  // Factor 3: Pais restringido (10 pts) — from cache
+  const paisMatch = paisRows.filter((r) => r.codigo_pais === params.nacionalidad_codigo);
+  if (paisMatch.length > 0) {
     score += 10;
   }
 
