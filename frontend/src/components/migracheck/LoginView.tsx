@@ -5,16 +5,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ShieldAlert, Lock, KeyRound, Loader2 } from "lucide-react";
+import { ShieldAlert, Lock, KeyRound, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { login, saveSession, type LoginResponse } from "@/lib/api";
 
 interface Props {
   onLogin: (data: LoginResponse) => void;
   onSolicitud: () => void;
+  onConsulta: () => void;
 }
 
-export function LoginView({ onLogin, onSolicitud }: Props) {
+export function LoginView({ onLogin, onSolicitud, onConsulta }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -104,6 +105,14 @@ export function LoginView({ onLogin, onSolicitud }: Props) {
               >
                 <Lock className="mr-2 h-4 w-4" />
                 Iniciar solicitud de evaluación
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={onConsulta}
+              >
+                <Search className="mr-2 h-4 w-4" />
+                Consultar estado de trámite
               </Button>
             </TabsContent>
 

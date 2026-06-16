@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { LoginView } from "./LoginView";
 import { SolicitudFlow } from "./solicitante/SolicitudFlow";
+import { ConsultaEstado } from "./solicitante/ConsultaEstado";
 import { AgenteShell } from "./agente/AgenteShell";
 import { getSession, logout, type LoginResponse } from "@/lib/api";
 
@@ -19,35 +20,40 @@ function restoreSession(): Session | null {
   return { token, rol: session.rol, nombre: session.nombre };
 }
 
+type PublicView = "login" | "solicitud" | "consulta";
+
 export function MigraCheckApp() {
   const [session, setSession] = useState<Session | null>(restoreSession);
-  const [showSolicitud, setShowSolicitud] = useState(false);
+  const [publicView, setPublicView] = useState<PublicView>("login");
 
   function handleLogin(data: LoginResponse) {
     setSession({ token: data.token, rol: data.rol, nombre: data.nombre });
+    setPublicView("login");
   }
 
   function handleLogout() {
     logout();
     setSession(null);
-    setShowSolicitud(false);
+    setPublicView("login");
   }
 
-  // Agente / Admin autenticado
   if (session) {
     return <AgenteShell session={session} onLogout={handleLogout} />;
   }
 
-  // Solicitante sin login → wizard de registro
-  if (showSolicitud) {
-    return <SolicitudFlow onVolver={() => setShowSolicitud(false)} />;
+  if (publicView === "solicitud") {
+    return <SolicitudFlow onVolver={() => setPublicView("login")} />;
   }
 
-  // Pantalla de login
+  if (publicView === "consulta") {
+    return <ConsultaEstado onVolver={() => setPublicView("login")} />;
+  }
+
   return (
     <LoginView
       onLogin={handleLogin}
-      onSolicitud={() => setShowSolicitud(true)}
+      onSolicitud={() => setPublicView("solicitud")}
+      onConsulta={() => setPublicView("consulta")}
     />
   );
 }
