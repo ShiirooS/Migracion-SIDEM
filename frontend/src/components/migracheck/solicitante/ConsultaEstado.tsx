@@ -1,17 +1,24 @@
 import { useState } from "react";
-import { getApplicationStatus, ApiError, type StatusResult } from "@/lib/api";
+import { getApplicationStatus, ApiError } from "@/lib/api";
 import escudo from "@/assets/escudo-panama.png";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Loader2, Search, AlertTriangle, FileWarning } from "lucide-react";
+import { ArrowLeft, Loader2, Search, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+interface StatusResult {
+  ticket_number: string;
+  estado: string;
+  nivel_riesgo: string | null;
+  categoria_migratoria: string;
+  created_at: string;
+}
 
 interface Props {
   onVolver: () => void;
-  onSubsanar?: () => void;
 }
 
 const ESTADO_COLOR: Record<string, string> = {
@@ -19,7 +26,6 @@ const ESTADO_COLOR: Record<string, string> = {
   EN_EVALUACION: "text-blue-600",
   APROBADO: "text-success",
   RECHAZADO: "text-danger",
-  SUBSANACION_PENDIENTE: "text-warning-foreground",
 };
 
 const ESTADO_DESC: Record<string, string> = {
@@ -27,10 +33,10 @@ const ESTADO_DESC: Record<string, string> = {
   EN_EVALUACION: "Un agente está revisando su expediente.",
   APROBADO: "Su solicitud ha sido aprobada. Comuníquese con la SNM para continuar el proceso.",
   RECHAZADO: "Su solicitud ha sido rechazada. Consulte la notificación oficial para conocer el fundamento.",
-  SUBSANACION_PENDIENTE: "Se requiere información adicional. Revise los detalles a continuación.",
+  SUBSANACION_PENDIENTE: "Se requiere información adicional. Comuníquese con la SNM.",
 };
 
-export function ConsultaEstado({ onVolver, onSubsanar }: Props) {
+export function ConsultaEstado({ onVolver }: Props) {
   const [ticket, setTicket] = useState("");
   const [pasaporte, setPasaporte] = useState("");
   const [loading, setLoading] = useState(false);
@@ -50,7 +56,7 @@ export function ConsultaEstado({ onVolver, onSubsanar }: Props) {
       const data = await getApplicationStatus(
         pasaporte.trim().toUpperCase(),
         ticket.trim().toUpperCase(),
-      );
+      ) as StatusResult;
       setResult(data);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
@@ -160,28 +166,6 @@ export function ConsultaEstado({ onVolver, onSubsanar }: Props) {
                 <p className="rounded-md border bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
                   {ESTADO_DESC[result.estado]}
                 </p>
-              )}
-
-              {result.estado === "SUBSANACION_PENDIENTE" && result.razon_subsanacion && (
-                <div className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-xs">
-                  <p className="font-semibold text-warning-foreground mb-1">Qué debe corregir:</p>
-                  <p className="text-foreground/80">{result.razon_subsanacion}</p>
-                  {result.fecha_subsanacion_solicitada && (
-                    <p className="mt-2 text-muted-foreground">
-                      Solicitado el {new Date(result.fecha_subsanacion_solicitada).toLocaleString("es-PA")}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {result.estado === "SUBSANACION_PENDIENTE" && onSubsanar && (
-                <Button
-                  className="w-full bg-gold text-gold-foreground hover:bg-gold/90"
-                  onClick={onSubsanar}
-                >
-                  <FileWarning className="mr-2 h-4 w-4" />
-                  Subir documentos corregidos
-                </Button>
               )}
             </CardContent>
           </Card>

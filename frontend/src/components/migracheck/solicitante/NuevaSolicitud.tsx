@@ -19,7 +19,6 @@ const MAX_FILE_MB = 5;
 const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
 const NOMBRE_RE = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]{3,150}$/;
 const PASAPORTE_RE = /^[a-zA-Z0-9]{6,20}$/;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const PAISES: { codigo: string; nombre: string }[] = [
   { codigo: "AR", nombre: "Argentina" },
@@ -135,7 +134,6 @@ interface FormState {
   numeroPasaporte: string;
   vencimientoPasaporte: string;
   categoriaMigratoria: string;
-  correoElectronico: string;
   montoSubsistencia: string;
   comprobanteSolvencia: File | null;
   antecedentePenal: File | null;
@@ -163,7 +161,6 @@ export function NuevaSolicitud() {
     numeroPasaporte: "",
     vencimientoPasaporte: "",
     categoriaMigratoria: "",
-    correoElectronico: "",
     montoSubsistencia: "",
     comprobanteSolvencia: null,
     antecedentePenal: null,
@@ -213,8 +210,6 @@ export function NuevaSolicitud() {
       e.vencimientoPasaporte = "El pasaporte debe tener vigencia mínima de 6 meses (Art. 43, Decreto Ley 3/2008)";
     if (!form.categoriaMigratoria)
       e.categoriaMigratoria = "Seleccione una categoría";
-    if (form.correoElectronico && !EMAIL_RE.test(form.correoElectronico))
-      e.correoElectronico = "Ingrese un correo electrónico válido";
     return e;
   }
 
@@ -268,7 +263,6 @@ export function NuevaSolicitud() {
       fd.append("vencimiento_pasaporte", form.vencimientoPasaporte);
       fd.append("categoria_migratoria", form.categoriaMigratoria);
       fd.append("monto_subsistencia", form.montoSubsistencia);
-      if (form.correoElectronico.trim()) fd.append("correo_electronico", form.correoElectronico.trim().toLowerCase());
       if (form.comprobanteSolvencia) fd.append("comprobante_solvencia", form.comprobanteSolvencia);
       if (form.antecedentePenal) fd.append("antecedentes_penales", form.antecedentePenal);
 
@@ -429,19 +423,6 @@ export function NuevaSolicitud() {
                   ))}
                 </SelectContent>
               </Select>
-            </FieldWrap>
-
-            <FieldWrap label="Correo electrónico (opcional, recomendado)" error={errors.correoElectronico} className="md:col-span-2">
-              <Input
-                type="email"
-                placeholder="correo@ejemplo.com"
-                value={form.correoElectronico}
-                onChange={(e) => setField("correoElectronico", e.target.value)}
-                className={cn(errors.correoElectronico && "border-danger")}
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Recibirá notificaciones sobre el estado de su trámite.
-              </p>
             </FieldWrap>
           </div>
         )}

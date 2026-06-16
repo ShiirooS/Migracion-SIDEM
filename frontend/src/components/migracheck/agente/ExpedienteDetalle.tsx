@@ -10,11 +10,10 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
-  Loader2, AlertTriangle, FileText, ArrowLeft, Check, X, FileWarning,
+  Loader2, AlertTriangle, FileText, ArrowLeft, Check, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { SubsanacionAgente } from "./SubsanacionAgente";
 
 interface AppDetail {
   id: string;
@@ -35,8 +34,6 @@ interface AppDetail {
   interpol_alerta_detalle: string | null;
   url_solvencia: string | null;
   url_antecedentes: string | null;
-  razon_subsanacion: string | null;
-  fecha_subsanacion_solicitada: string | null;
 }
 
 interface Props {
@@ -49,7 +46,6 @@ const ESTADO_COLOR: Record<string, string> = {
   EN_EVALUACION: "bg-blue-500/15 text-blue-700",
   APROBADO: "bg-success/15 text-success",
   RECHAZADO: "bg-danger/15 text-danger",
-  SUBSANACION_PENDIENTE: "bg-warning/20 text-warning-foreground",
 };
 
 export function ExpedienteDetalle({ applicationId, onVolver }: Props) {
@@ -62,7 +58,6 @@ export function ExpedienteDetalle({ applicationId, onVolver }: Props) {
   const [justificacion, setJustificacion] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [showSubsanacion, setShowSubsanacion] = useState(false);
 
   async function cargar() {
     setLoading(true);
@@ -103,7 +98,6 @@ export function ExpedienteDetalle({ applicationId, onVolver }: Props) {
   }
 
   const puedeEmitir = app && ["PENDIENTE", "EN_EVALUACION"].includes(app.estado) && !submitted;
-  const puedeSubsanar = app && ["PENDIENTE", "EN_EVALUACION"].includes(app.estado) && !submitted && !showSubsanacion;
 
   if (loading) {
     return (
@@ -269,46 +263,6 @@ export function ExpedienteDetalle({ applicationId, onVolver }: Props) {
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {puedeSubsanar && (
-        <Button
-          variant="outline"
-          className="border-warning/40 text-warning-foreground hover:bg-warning/10"
-          onClick={() => setShowSubsanacion(true)}
-        >
-          <FileWarning className="mr-2 h-4 w-4" />
-          Solicitar subsanación
-        </Button>
-      )}
-
-      {showSubsanacion && app && (
-        <SubsanacionAgente
-          applicationId={app.id}
-          ticketNumber={app.ticket_number}
-          onExito={async () => {
-            setShowSubsanacion(false);
-            const updated = await getApplication(applicationId) as unknown as AppDetail;
-            setApp(updated);
-            toast.success("Expediente actualizado a SUBSANACIÓN PENDIENTE");
-          }}
-          onCancelar={() => setShowSubsanacion(false)}
-        />
-      )}
-
-      {app.estado === "SUBSANACION_PENDIENTE" && app.razon_subsanacion && (
-        <Alert className="border-warning/40 bg-warning/10">
-          <AlertTriangle className="h-4 w-4 text-warning" />
-          <AlertTitle className="text-warning-foreground">Subsanación solicitada</AlertTitle>
-          <AlertDescription className="text-foreground/80">
-            <strong>Razón:</strong> {app.razon_subsanacion}
-            {app.fecha_subsanacion_solicitada && (
-              <span className="block mt-1 text-xs text-muted-foreground">
-                Solicitada el {new Date(app.fecha_subsanacion_solicitada).toLocaleString("es-PA")}
-              </span>
-            )}
-          </AlertDescription>
-        </Alert>
       )}
 
       {submitted && (
