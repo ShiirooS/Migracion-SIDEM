@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getControlLists } from './control-lists-cache';
 
 export interface RiskResult {
   score: number;
@@ -6,6 +7,14 @@ export interface RiskResult {
   interpol_alerta_encontrada: boolean;
   interpol_alerta_tipo: string | null;
   interpol_alerta_detalle: string | null;
+}
+
+// Minimal shape we need from a control_lists row
+interface ControlListRow {
+  numero_pasaporte?: string | null;
+  descripcion_alerta?: string | null;
+  codigo_pais?: string | null;
+  nombre_completo?: string | null;
 }
 
 export async function calcularRiesgo(params: {
@@ -21,23 +30,27 @@ export async function calcularRiesgo(params: {
 
   const nombreCompleto = `${params.nombres} ${params.apellidos}`;
 
-  // Verificar INTERPOL Red Notice por pasaporte exacto
-  const { data: interpolPasaporte } = await supabase
-    .from('control_lists')
-    .select('*')
-    .eq('tipo_lista', 'INTERPOL_RED_NOTICE')
-    .eq('numero_pasaporte', params.numero_pasaporte)
-    .eq('activo', true)
-    .limit(1);
+  // SCRUM-52: Use cached lists instead of direct Supabase queries.
+  // The cache key is the tipo_lista string; each list type is fetched once per 6h.
+  const [interpolRows, ofacRows, paisRows] = await Promise.all([
+    getControlLists('INTERPOL_RED_NOTICE') as Promise<ControlListRow[]>,
+    getControlLists('OFAC_SDN') as Promise<ControlListRow[]>,
+    getControlLists('PAIS_RESTRINGIDO') as Promise<ControlListRow[]>,
+  ]);
 
-  if (interpolPasaporte && interpolPasaporte.length > 0) {
+  // Verificar INTERPOL Red Notice por pasaporte exacto
+  const interpolPasaporte = interpolRows.filter(
+    (r) => r.numero_pasaporte === params.numero_pasaporte
+  );
+
+  if (interpolPasaporte.length > 0) {
     score += 50;
     interpol_alerta_encontrada = true;
     interpol_alerta_tipo = 'INTERPOL_RED_NOTICE';
     interpol_alerta_detalle = interpolPasaporte[0].descripcion_alerta ?? 'Red Notice encontrada';
   }
 
-  // Verificar INTERPOL por nombre (fuzzy) si no hubo match por pasaporte
+  // Verificar INTERPOL por nombre (fuzzy) via RPC — not cacheable as it's a full-text search
   if (!interpol_alerta_encontrada) {
     const { data: interpolNombre } = await supabase.rpc('buscar_interpol_nombre', {
       p_nombre: nombreCompleto,
@@ -52,33 +65,19 @@ export async function calcularRiesgo(params: {
   }
 
   // Verificar OFAC SDN por pasaporte
-  const { data: ofacPasaporte } = await supabase
-    .from('control_lists')
-    .select('*')
-    .eq('tipo_lista', 'OFAC_SDN')
-    .eq('numero_pasaporte', params.numero_pasaporte)
-    .eq('activo', true)
-    .limit(1);
-
-  if (ofacPasaporte && ofacPasaporte.length > 0) {
+  const ofacMatch = ofacRows.filter((r) => r.numero_pasaporte === params.numero_pasaporte);
+  if (ofacMatch.length > 0) {
     score += 40;
     if (!interpol_alerta_encontrada) {
       interpol_alerta_encontrada = true;
       interpol_alerta_tipo = 'OFAC_SDN';
-      interpol_alerta_detalle = ofacPasaporte[0].descripcion_alerta ?? 'Lista SDN OFAC';
+      interpol_alerta_detalle = ofacMatch[0].descripcion_alerta ?? 'Lista SDN OFAC';
     }
   }
 
   // Verificar país restringido
-  const { data: paisRestringido } = await supabase
-    .from('control_lists')
-    .select('*')
-    .eq('tipo_lista', 'PAIS_RESTRINGIDO')
-    .eq('codigo_pais', params.nacionalidad_codigo)
-    .eq('activo', true)
-    .limit(1);
-
-  if (paisRestringido && paisRestringido.length > 0) {
+  const paisMatch = paisRows.filter((r) => r.codigo_pais === params.nacionalidad_codigo);
+  if (paisMatch.length > 0) {
     score += 10;
   }
 
