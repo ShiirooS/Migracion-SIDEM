@@ -307,14 +307,13 @@ router.get('/status', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  // SCRUM-48: encrypt the lookup value to match stored ciphertext
-  const encPasaporte = encrypt(pasaporte);
-
+  // SCRUM-48: AES-GCM uses a random IV per encryption, so ciphertext is non-deterministic —
+  // we cannot use .eq() on the encrypted column. Instead fetch by the unique ticket_number
+  // (collision-free by construction) and compare the decrypted value in-process.
   const { data, error } = await supabase
     .from('applications')
-    .select('ticket_number,estado,nivel_riesgo,categoria_migratoria,created_at')
+    .select('ticket_number,estado,nivel_riesgo,categoria_migratoria,created_at,numero_pasaporte')
     .eq('ticket_number', ticket)
-    .eq('numero_pasaporte', encPasaporte)
     .single();
 
   if (error || !data) {
@@ -322,7 +321,16 @@ router.get('/status', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  res.json(data);
+  // Decrypt and compare passport to prevent ticket enumeration
+  const pasaporteDecrypted = decrypt(data.numero_pasaporte as string);
+  if (pasaporteDecrypted !== pasaporte) {
+    res.status(404).json({ error: 'Solicitud no encontrada' });
+    return;
+  }
+
+  // Strip the encrypted passport from the response
+  const { numero_pasaporte: _omit, ...responseData } = data;
+  res.json(responseData);
 });
 
 /**
