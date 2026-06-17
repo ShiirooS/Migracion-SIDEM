@@ -107,7 +107,8 @@ async function setupControlLists() {
       continue;
     }
 
-    const { error } = await supabase.from('control_lists').insert(record);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await supabase.from('control_lists').insert(record as any);
     if (error) console.error(`  ERROR: ${record.nombre_completo}:`, error.message);
     else console.log(`  ✓ Insertado: ${record.nombre_completo} [${record.tipo_lista}]`);
   }

@@ -1,17 +1,18 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
+import { z } from 'zod';
 import { supabase } from '../lib/supabase';
 import { requireAuth } from '../middleware/auth';
 import { calcularRiesgo } from '../services/risk-engine';
 import { logAction } from '../services/audit';
+import { encrypt, decrypt } from '../utils/crypto';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-// ── Rate limiting simple para /status (RF03 — CA: bloquear IP tras 3 fallos) ──
+// ── Rate limiting para /status (RF03 — bloquear IP tras 3 fallos) ─────────────
 const rateLimitMap = new Map<string, { count: number; blockedUntil: number }>();
 
-// Normalizar IPs IPv4-mapped-IPv6 a formato consistente
 function normalizeIp(ip: string): string {
   return ip.replace(/^::ffff:/, '');
 }
@@ -43,7 +44,27 @@ function resetFailedAttempts(ip: string): void {
   rateLimitMap.delete(normalizeIp(ip));
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// SCRUM-51: Zod schema for POST body validation
+const SolicitudSchema = z.object({
+  nombres: z
+    .string()
+    .regex(/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]{2,150}$/, 'Nombres inválidos (solo letras, 2-150 caracteres)'),
+  apellidos: z
+    .string()
+    .regex(/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]{2,150}$/, 'Apellidos inválidos (solo letras, 2-150 caracteres)'),
+  numero_pasaporte: z
+    .string()
+    .regex(/^[a-zA-Z0-9]{6,20}$/, 'Número de pasaporte inválido (6-20 caracteres alfanuméricos)'),
+  vencimiento_pasaporte: z.string().datetime({ offset: true }).or(z.string().date()),
+  fecha_nacimiento: z.string().datetime({ offset: true }).or(z.string().date()),
+  nacionalidad_codigo: z.string().min(2).max(3),
+  categoria_migratoria: z.string().min(1),
+  monto_subsistencia: z
+    .string()
+    .refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) > 0, {
+      message: 'monto_subsistencia debe ser un número positivo',
+    }),
+});
 
 function generarTicket(): string {
   const year = new Date().getFullYear();
@@ -66,7 +87,44 @@ async function subirPDF(buffer: Buffer, filename: string): Promise<string> {
   return path;
 }
 
-// ── POST /api/applications — RF01 + RF02 + RF04 (público) ────────────────────
+/** Decrypt the PII fields of an application row returned from Supabase. */
+function decryptRow(row: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...row,
+    nombres: typeof row.nombres === 'string' ? decrypt(row.nombres) : row.nombres,
+    apellidos: typeof row.apellidos === 'string' ? decrypt(row.apellidos) : row.apellidos,
+    numero_pasaporte:
+      typeof row.numero_pasaporte === 'string' ? decrypt(row.numero_pasaporte) : row.numero_pasaporte,
+    fecha_nacimiento:
+      typeof row.fecha_nacimiento === 'string' ? decrypt(row.fecha_nacimiento) : row.fecha_nacimiento,
+  };
+}
+
+/**
+ * @swagger
+ * /api/applications:
+ *   post:
+ *     summary: Crear nueva solicitud migratoria
+ *     tags: [Applications]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             $ref: '#/components/schemas/NuevaSolicitud'
+ *     responses:
+ *       201:
+ *         description: Solicitud creada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SolicitudCreada'
+ *       400:
+ *         description: Campos requeridos faltantes
+ *       422:
+ *         description: Validación fallida (pasaporte vencido, archivos no PDF, etc.)
+ */
+// POST /api/applications — SCRUM-33 (público)
 router.post(
   '/',
   upload.fields([
@@ -77,29 +135,40 @@ router.post(
     const ip = req.ip ?? 'unknown';
     const files = req.files as Record<string, Express.Multer.File[]> | undefined;
 
-    const {
-      nombres, apellidos, fecha_nacimiento, nacionalidad_codigo,
-      numero_pasaporte, vencimiento_pasaporte, categoria_migratoria, monto_subsistencia,
-    } = req.body as Record<string, string>;
-
-    // RF02: Campos obligatorios
-    if (!nombres || !apellidos || !fecha_nacimiento || !nacionalidad_codigo ||
-        !numero_pasaporte || !vencimiento_pasaporte || !categoria_migratoria || !monto_subsistencia) {
-      res.status(400).json({ error: 'Todos los campos son requeridos' });
+    // SCRUM-51: Zod validation — validate body before business logic
+    const parsed = SolicitudSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(422).json({ error: 'Validación fallida', detalles: parsed.error.flatten().fieldErrors });
       return;
     }
+
+    const {
+      nombres,
+      apellidos,
+      fecha_nacimiento,
+      nacionalidad_codigo,
+      numero_pasaporte,
+      vencimiento_pasaporte,
+      categoria_migratoria,
+      monto_subsistencia,
+    } = parsed.data;
 
     // RF02: Edad ≥ 18
     const nacimiento = new Date(fecha_nacimiento);
     const hoy = new Date();
-    const edad = hoy.getFullYear() - nacimiento.getFullYear() -
-      (hoy.getMonth() < nacimiento.getMonth() || (hoy.getMonth() === nacimiento.getMonth() && hoy.getDate() < nacimiento.getDate()) ? 1 : 0);
+    const edad =
+      hoy.getFullYear() -
+      nacimiento.getFullYear() -
+      (hoy.getMonth() < nacimiento.getMonth() ||
+      (hoy.getMonth() === nacimiento.getMonth() && hoy.getDate() < nacimiento.getDate())
+        ? 1
+        : 0);
     if (edad < 18) {
       res.status(422).json({ error: 'El solicitante debe ser mayor de edad' });
       return;
     }
 
-    // RF02 / CA-01: Pasaporte vigente mínimo 6 meses (Art. 43 DL3/2008)
+    // CA-01: Pasaporte vigente mínimo 6 meses (Art. 43 DL3/2008)
     const venc = new Date(vencimiento_pasaporte);
     const sixMonths = new Date();
     sixMonths.setMonth(sixMonths.getMonth() + 6);
@@ -111,14 +180,7 @@ router.post(
       return;
     }
 
-    // RF02: Monto > 0 (Art. 50 Num. 1)
-    const monto = parseFloat(monto_subsistencia);
-    if (isNaN(monto) || monto <= 0) {
-      res.status(422).json({ error: 'Debe declarar un monto de subsistencia válido (Art. 50, DL3/2008)', field: 'monto_subsistencia' });
-      return;
-    }
-
-    // RF02 / CA-02: Archivos PDF requeridos
+    // CA-02: Archivos PDF requeridos
     const solvenciaFile = files?.comprobante_solvencia?.[0];
     const antecedentesFile = files?.antecedentes_penales?.[0];
     if (!solvenciaFile || !antecedentesFile) {
@@ -141,13 +203,23 @@ router.post(
         subirPDF(antecedentesFile.buffer, antecedentesFile.originalname),
       ]);
 
-      // RF04: Motor de scoring
+      // SCRUM-34: Motor de scoring — uses plaintext values for control_lists lookup
       const riesgo = await calcularRiesgo({ nombres, apellidos, numero_pasaporte, nacionalidad_codigo });
 
-      // CA-03: Ticket único
+      // SCRUM-48: Encrypt PII before storing
+      const encNombres = encrypt(nombres);
+      const encApellidos = encrypt(apellidos);
+      const encPasaporte = encrypt(numero_pasaporte);
+      const encFechaNac = encrypt(fecha_nacimiento);
+
+      // CA-03: Generar ticket único
       let ticket_number = generarTicket();
       for (let i = 0; i < 5; i++) {
-        const { data: existing } = await supabase.from('applications').select('id').eq('ticket_number', ticket_number).single();
+        const { data: existing } = await supabase
+          .from('applications')
+          .select('id')
+          .eq('ticket_number', ticket_number)
+          .single();
         if (!existing) break;
         ticket_number = generarTicket();
       }
@@ -155,9 +227,15 @@ router.post(
       const { data: app, error } = await supabase
         .from('applications')
         .insert({
-          ticket_number, nombres, apellidos, fecha_nacimiento, nacionalidad_codigo,
-          numero_pasaporte, vencimiento_pasaporte, categoria_migratoria,
-          monto_subsistencia: monto,
+          ticket_number,
+          nombres: encNombres,
+          apellidos: encApellidos,
+          fecha_nacimiento: encFechaNac,
+          nacionalidad_codigo,
+          numero_pasaporte: encPasaporte,
+          vencimiento_pasaporte,
+          categoria_migratoria,
+          monto_subsistencia: parseFloat(monto_subsistencia),
           ruta_comprobante_solvencia: rutaSolvencia,
           ruta_antecedentes_penales: rutaAntecedentes,
           estado: 'PENDIENTE',
@@ -192,7 +270,13 @@ router.post(
           factores: {
             interpol: riesgo.interpol_alerta_tipo === 'INTERPOL_RED_NOTICE' ? 50 : 0,
             ofac: riesgo.interpol_alerta_tipo === 'OFAC_SDN' ? 40 : 0,
-            pais_restringido: riesgo.score - (riesgo.interpol_alerta_tipo === 'INTERPOL_RED_NOTICE' ? 50 : riesgo.interpol_alerta_tipo === 'OFAC_SDN' ? 40 : 0),
+            pais_restringido:
+              riesgo.score -
+              (riesgo.interpol_alerta_tipo === 'INTERPOL_RED_NOTICE'
+                ? 50
+                : riesgo.interpol_alerta_tipo === 'OFAC_SDN'
+                  ? 40
+                  : 0),
           },
         },
         ip_origen: ip,
@@ -210,34 +294,95 @@ router.post(
   }
 );
 
-// ── GET /api/applications — RF05 (agente/admin) ───────────────────────────────
+/**
+ * @swagger
+ * /api/applications:
+ *   get:
+ *     summary: Listar expedientes (cursor-based pagination)
+ *     tags: [Applications]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: estado
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: cursor
+ *         description: ISO timestamp — fetch records older than this
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *           maximum: 100
+ *     responses:
+ *       200:
+ *         description: Lista paginada de expedientes
+ */
+// GET /api/applications — SCRUM-36/SCRUM-52 (agente/admin) with cursor pagination
 router.get('/', requireAuth('AGENTE', 'ADMIN'), async (req: Request, res: Response): Promise<void> => {
-  const { estado, agente_id, grupo } = req.query as { estado?: string; agente_id?: string; grupo?: string };
-
-  const GRUPOS: Record<string, string[]> = {
-    ACTIVOS: ['PENDIENTE', 'EN_EVALUACION', 'SUBSANACION_PENDIENTE'],
-    RESUELTOS: ['APROBADO', 'RECHAZADO'],
+  const { estado, cursor, limit: limitStr } = req.query as {
+    estado?: string;
+    cursor?: string;
+    limit?: string;
   };
+
+  // SCRUM-52: cursor-based pagination
+  const limit = Math.min(parseInt(limitStr ?? '20', 10) || 20, 100);
 
   let query = supabase
     .from('applications')
-    .select('id,ticket_number,nombres,apellidos,nacionalidad_codigo,categoria_migratoria,estado,nivel_riesgo,score_riesgo,interpol_alerta_encontrada,interpol_alerta_tipo,interpol_alerta_detalle,created_at,numero_pasaporte,fecha_nacimiento,vencimiento_pasaporte,monto_subsistencia,agente_asignado_id')
-    .order('score_riesgo', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false });
+    .select(
+      'id,ticket_number,nombres,apellidos,nacionalidad_codigo,categoria_migratoria,estado,nivel_riesgo,score_riesgo,interpol_alerta_encontrada,interpol_alerta_tipo,interpol_alerta_detalle,created_at,numero_pasaporte,fecha_nacimiento,vencimiento_pasaporte,monto_subsistencia,agente_asignado_id'
+    )
+    .order('created_at', { ascending: false })
+    .limit(limit);
 
-  if (estado) {
-    query = query.eq('estado', estado);
-  } else if (grupo && GRUPOS[grupo]) {
-    query = query.in('estado', GRUPOS[grupo]);
-  }
-  if (agente_id) query = query.eq('agente_asignado_id', agente_id);
+  if (estado) query = query.eq('estado', estado);
+  // Cursor: only return rows older than the cursor timestamp
+  if (cursor) query = query.lt('created_at', cursor);
 
   const { data, error } = await query;
-  if (error) { res.status(500).json({ error: error.message }); return; }
-  res.json(data);
+  if (error) {
+    res.status(500).json({ error: error.message });
+    return;
+  }
+
+  const rows = (data ?? []).map(decryptRow);
+  const nextCursor = rows.length === limit ? (rows[rows.length - 1].created_at as string) : null;
+
+  res.json({ data: rows, nextCursor });
 });
 
-// ── GET /api/applications/status — RF03 (público) ────────────────────────────
+/**
+ * @swagger
+ * /api/applications/status:
+ *   get:
+ *     summary: Consultar estado de solicitud (público)
+ *     tags: [Applications]
+ *     parameters:
+ *       - in: query
+ *         name: pasaporte
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: ticket
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Estado de la solicitud
+ *       404:
+ *         description: Solicitud no encontrada
+ *       429:
+ *         description: Demasiados intentos fallidos
+ */
+// GET /api/applications/status — SCRUM-38 (público)
 router.get('/status', async (req: Request, res: Response): Promise<void> => {
   const ip = req.ip ?? 'unknown';
   const { pasaporte, ticket } = req.query as { pasaporte?: string; ticket?: string };
@@ -257,52 +402,81 @@ router.get('/status', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
+  // SCRUM-48: AES-GCM uses a random IV per encryption, so ciphertext is non-deterministic —
+  // we cannot use .eq() on the encrypted column. Instead fetch by the unique ticket_number
+  // (collision-free by construction) and compare the decrypted value in-process.
   const { data, error } = await supabase
     .from('applications')
-    .select('ticket_number,estado,nivel_riesgo,categoria_migratoria,created_at')
-    .eq('ticket_number', ticket.toUpperCase())
-    .eq('numero_pasaporte', pasaporte.toUpperCase())
+    .select('ticket_number,estado,nivel_riesgo,categoria_migratoria,created_at,numero_pasaporte')
+    .eq('ticket_number', ticket)
     .single();
 
   if (error || !data) {
     recordFailedAttempt(ip);
-    // RF10: Audit CONSULTA_ESTADO (fallida)
     await logAction({ accion: 'CONSULTA_ESTADO', detalles: { ticket, resultado: 'no_encontrado' }, ip_origen: ip });
+    res.status(404).json({ error: 'Solicitud no encontrada' });
+    return;
+  }
+
+  // Decrypt and compare passport to prevent ticket enumeration
+  const pasaporteDecrypted = decrypt(data.numero_pasaporte as string);
+  if (pasaporteDecrypted !== pasaporte) {
+    recordFailedAttempt(ip);
     res.status(404).json({ error: 'Solicitud no encontrada' });
     return;
   }
 
   resetFailedAttempts(ip);
 
-  // RF03: Incluir artículo_citado del dictamen si está resuelto
-  let articulo_citado: string | null = null;
-  if (data.estado === 'APROBADO' || data.estado === 'RECHAZADO') {
-    const { data: dictamen } = await supabase
-      .from('dictamenes')
-      .select('articulo_citado')
-      .eq('expediente_id', (await supabase.from('applications').select('id').eq('ticket_number', data.ticket_number).single()).data?.id ?? '')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-    articulo_citado = dictamen?.articulo_citado ?? null;
-  }
-
   // RF10: Audit CONSULTA_ESTADO (exitosa)
-  await logAction({ accion: 'CONSULTA_ESTADO', detalles: { ticket, resultado: 'encontrado', estado: data.estado }, ip_origen: ip });
+  await logAction({
+    accion: 'CONSULTA_ESTADO',
+    detalles: { ticket, resultado: 'encontrado', estado: data.estado },
+    ip_origen: ip,
+  });
 
-  res.json({ ...data, articulo_citado });
+  // Strip the encrypted passport from the response
+  const { numero_pasaporte: _omit, ...responseData } = data;
+  res.json(responseData);
 });
 
-// ── GET /api/applications/:id — RF05 + RF06 (agente/admin) ───────────────────
+/**
+ * @swagger
+ * /api/applications/{id}:
+ *   get:
+ *     summary: Obtener expediente por ID
+ *     tags: [Applications]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Expediente completo con URLs firmadas de PDFs
+ *       404:
+ *         description: Expediente no encontrado
+ */
+// GET /api/applications/:id — SCRUM-37 (agente/admin)
 router.get('/:id', requireAuth('AGENTE', 'ADMIN'), async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   const ip = req.ip ?? 'unknown';
 
-  const { data, error } = await supabase.from('applications').select('*').eq('id', id).single();
+  const { data, error } = await supabase
+    .from('applications')
+    .select('*')
+    .eq('id', id)
+    .single();
 
-  if (error || !data) { res.status(404).json({ error: 'Expediente no encontrado' }); return; }
+  if (error || !data) {
+    res.status(404).json({ error: 'Expediente no encontrado' });
+    return;
+  }
 
-  // RF06: Cambiar a EN_EVALUACION si estaba PENDIENTE
+  // RF06: Auto-transición a EN_EVALUACION al abrir un expediente PENDIENTE
   if (data.estado === 'PENDIENTE') {
     await supabase.from('applications').update({ estado: 'EN_EVALUACION' }).eq('id', id);
     data.estado = 'EN_EVALUACION';
@@ -317,22 +491,30 @@ router.get('/:id', requireAuth('AGENTE', 'ADMIN'), async (req: Request, res: Res
     ip_origen: ip,
   });
 
-  // URLs firmadas para PDFs (300s = 5 min)
+  // SCRUM-48: Decrypt PII before returning
+  const decrypted = decryptRow(data as Record<string, unknown>);
+
+  // URL firmada para los PDFs (300s = 5 min)
   let urlSolvencia: string | null = null;
   let urlAntecedentes: string | null = null;
+
   if (data.ruta_comprobante_solvencia) {
-    const { data: signed } = await supabase.storage.from('documents').createSignedUrl(data.ruta_comprobante_solvencia, 300);
+    const { data: signed } = await supabase.storage
+      .from('documents')
+      .createSignedUrl(data.ruta_comprobante_solvencia, 300);
     urlSolvencia = signed?.signedUrl ?? null;
   }
   if (data.ruta_antecedentes_penales) {
-    const { data: signed } = await supabase.storage.from('documents').createSignedUrl(data.ruta_antecedentes_penales, 300);
+    const { data: signed } = await supabase.storage
+      .from('documents')
+      .createSignedUrl(data.ruta_antecedentes_penales, 300);
     urlAntecedentes = signed?.signedUrl ?? null;
   }
 
-  res.json({ ...data, url_solvencia: urlSolvencia, url_antecedentes: urlAntecedentes });
+  res.json({ ...decrypted, url_solvencia: urlSolvencia, url_antecedentes: urlAntecedentes });
 });
 
-// ── POST /api/applications/:id/verdict — RF06 (agente/admin) ─────────────────
+// POST /api/applications/:id/verdict — SCRUM-37 (agente/admin)
 router.post('/:id/verdict', requireAuth('AGENTE', 'ADMIN'), async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   const { decision, articulo_citado, justificacion } = req.body as {
@@ -406,7 +588,7 @@ router.post('/:id/verdict', requireAuth('AGENTE', 'ADMIN'), async (req: Request,
   }
 });
 
-// ── PATCH /api/applications/:id/assign — RF05 asignación (solo ADMIN) ────────
+// PATCH /api/applications/:id/assign — RF05 asignación (solo ADMIN)
 router.patch('/:id/assign', requireAuth('ADMIN'), async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   const { agente_id } = req.body as { agente_id: string };
