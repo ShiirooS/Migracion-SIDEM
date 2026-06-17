@@ -10,6 +10,7 @@ import authRoutes from './routes/auth';
 import applicationRoutes from './routes/applications';
 import auditRoutes from './routes/audit';
 import metricsRoutes from './routes/metrics';
+import agentesRoutes from './routes/agentes';
 import { startCronJobs } from './jobs/update-control-lists';
 import { swaggerSpec } from './swagger';
 
@@ -73,6 +74,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/audit-log', auditRoutes);
 app.use('/api/metrics', metricsRoutes);
+app.use('/api/agentes', agentesRoutes);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'SIDEM-PAN backend' });

@@ -15,6 +15,7 @@ interface StatusResult {
   nivel_riesgo: string | null;
   categoria_migratoria: string;
   created_at: string;
+  articulo_citado: string | null;
 }
 
 interface Props {
@@ -161,6 +162,12 @@ export function ConsultaEstado({ onVolver }: Props) {
                     {result.estado.replace(/_/g, " ")}
                   </span>
                 </div>
+                {result.articulo_citado && (
+                  <div className="flex justify-between border-t pt-2">
+                    <span className="text-muted-foreground">Fundamento legal</span>
+                    <span className="font-medium text-right text-xs max-w-[55%]">{result.articulo_citado}</span>
+                  </div>
+                )}
               </div>
               {ESTADO_DESC[result.estado] && (
                 <p className="rounded-md border bg-muted/30 px-4 py-3 text-xs text-muted-foreground">

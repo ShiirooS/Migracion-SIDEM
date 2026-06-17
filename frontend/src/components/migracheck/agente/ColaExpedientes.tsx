@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getApplications, type Application } from "@/lib/api";
+import { getApplications, getAgentes, type Application, type Agente } from "@/lib/api";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -13,10 +13,12 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   modoHistorial?: boolean;
+  session: { rol: "AGENTE" | "ADMIN"; id: string };
   onSeleccionar: (id: string) => void;
 }
 
-const ESTADOS = ["PENDIENTE", "EN_EVALUACION", "APROBADO", "RECHAZADO", "SUBSANACION_PENDIENTE"];
+const ESTADOS_COLA = ["PENDIENTE", "EN_EVALUACION", "SUBSANACION_PENDIENTE"];
+const ESTADOS_HISTORIAL = ["APROBADO", "RECHAZADO"];
 
 function RiskBadge({ nivel }: { nivel: string | null }) {
   const cfg = {
@@ -46,17 +48,38 @@ function EstadoBadge({ estado }: { estado: string }) {
   );
 }
 
-export function ColaExpedientes({ modoHistorial = false, onSeleccionar }: Props) {
+export function ColaExpedientes({ modoHistorial = false, session, onSeleccionar }: Props) {
   const [apps, setApps] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [estadoFiltro, setEstadoFiltro] = useState<string>(modoHistorial ? "APROBADO" : "TODOS");
+  const [estadoFiltro, setEstadoFiltro] = useState<string>("TODOS");
+  const [agenteFilter, setAgenteFilter] = useState<string>("TODOS");
+  const [agentes, setAgentes] = useState<Agente[]>([]);
 
-  async function cargar(estado?: string) {
+  useEffect(() => {
+    setEstadoFiltro("TODOS");
+    setAgenteFilter("TODOS");
+  }, [modoHistorial]);
+
+  useEffect(() => {
+    if (session.rol === "ADMIN") {
+      getAgentes().then(setAgentes).catch(() => {});
+    }
+  }, [session.rol]);
+
+  async function cargar() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getApplications(estado ? { estado } : undefined);
+      const params: { estado?: string; agente_id?: string; grupo?: "ACTIVOS" | "RESUELTOS" } = {};
+      if (estadoFiltro !== "TODOS") {
+        params.estado = estadoFiltro;
+      } else {
+        params.grupo = modoHistorial ? "RESUELTOS" : "ACTIVOS";
+      }
+      if (agenteFilter === "MIS") params.agente_id = session.id;
+      else if (agenteFilter !== "TODOS") params.agente_id = agenteFilter;
+      const data = await getApplications(params);
       setApps(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar expedientes");
@@ -66,8 +89,8 @@ export function ColaExpedientes({ modoHistorial = false, onSeleccionar }: Props)
   }
 
   useEffect(() => {
-    cargar(estadoFiltro === "TODOS" ? undefined : estadoFiltro);
-  }, [estadoFiltro]);
+    cargar();
+  }, [estadoFiltro, agenteFilter]);
 
   return (
     <div className="space-y-4">
@@ -76,13 +99,38 @@ export function ColaExpedientes({ modoHistorial = false, onSeleccionar }: Props)
           {modoHistorial ? "Historial de dictámenes" : "Cola de expedientes"}
         </h2>
         <div className="flex items-center gap-3">
+          {session.rol === "ADMIN" ? (
+            <Select value={agenteFilter} onValueChange={setAgenteFilter}>
+              <SelectTrigger className="w-56">
+                <SelectValue placeholder="Todos los expedientes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="TODOS">Todos los expedientes</SelectItem>
+                {agentes.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.nombre_completo}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Select value={agenteFilter} onValueChange={setAgenteFilter}>
+              <SelectTrigger className="w-52">
+                <SelectValue placeholder="Todos los expedientes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="TODOS">Todos los expedientes</SelectItem>
+                <SelectItem value="MIS">Mis expedientes asignados</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           <Select value={estadoFiltro} onValueChange={setEstadoFiltro}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Todos los estados" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="TODOS">Todos</SelectItem>
-              {ESTADOS.map((e) => (
+              {(modoHistorial ? ESTADOS_HISTORIAL : ESTADOS_COLA).map((e) => (
                 <SelectItem key={e} value={e}>{e.replace(/_/g, " ")}</SelectItem>
               ))}
             </SelectContent>
@@ -90,7 +138,7 @@ export function ColaExpedientes({ modoHistorial = false, onSeleccionar }: Props)
           <Button
             variant="outline"
             size="icon"
-            onClick={() => cargar(estadoFiltro === "TODOS" ? undefined : estadoFiltro)}
+            onClick={() => cargar()}
             disabled={loading}
           >
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
