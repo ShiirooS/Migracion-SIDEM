@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt';
 import pool from '../pool';
 
 // Contraseña por defecto para todos los usuarios de prueba
-const DEFAULT_PASSWORD = 'sidem2026';
+const DEFAULT_PASSWORD = 'Admin2026!';
 
 async function seed() {
   const hash = await bcrypt.hash(DEFAULT_PASSWORD, 12);

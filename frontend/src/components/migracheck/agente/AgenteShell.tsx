@@ -8,12 +8,14 @@ import { ColaExpedientes } from "./ColaExpedientes";
 import { ExpedienteDetalle } from "./ExpedienteDetalle";
 import { AuditLogViewer } from "./AuditLogViewer";
 import { MetricasSNM } from "./MetricasSNM";
+import { AsignacionExpedientes } from "./AsignacionExpedientes";
 import { cn } from "@/lib/utils";
 
 interface Session {
   token: string;
   rol: Rol;
   nombre: string;
+  id: string;
 }
 
 interface Props {
@@ -21,7 +23,7 @@ interface Props {
   onLogout: () => void;
 }
 
-type View = "cola" | "detalle" | "historial" | "auditoria" | "metricas";
+type View = "cola" | "detalle" | "historial" | "auditoria" | "metricas" | "asignacion";
 
 const NAV_AGENTE = [
   { id: "cola" as View, label: "Cola de expedientes", icon: Inbox },
@@ -29,6 +31,7 @@ const NAV_AGENTE = [
 ];
 
 const NAV_ADMIN = [
+  { id: "asignacion" as View, label: "Asignar expedientes", icon: ClipboardCheck },
   { id: "auditoria" as View, label: "Auditoría WORM", icon: Shield },
   { id: "metricas" as View, label: "Métricas SNM", icon: BarChart3 },
 ];
@@ -54,17 +57,19 @@ export function AgenteShell({ session, onLogout }: Props) {
   function renderView() {
     switch (view) {
       case "cola":
-        return <ColaExpedientes onSeleccionar={irADetalle} />;
+        return <ColaExpedientes key="cola" session={session} onSeleccionar={irADetalle} />;
       case "detalle":
         return selectedId
-          ? <ExpedienteDetalle applicationId={selectedId} onVolver={volverACola} />
-          : <ColaExpedientes onSeleccionar={irADetalle} />;
+          ? <ExpedienteDetalle applicationId={selectedId} session={session} onVolver={volverACola} />
+          : <ColaExpedientes key="cola" session={session} onSeleccionar={irADetalle} />;
       case "historial":
-        return <ColaExpedientes modoHistorial onSeleccionar={irADetalle} />;
+        return <ColaExpedientes key="historial" modoHistorial session={session} onSeleccionar={irADetalle} />;
       case "auditoria":
         return <AuditLogViewer />;
       case "metricas":
         return <MetricasSNM />;
+      case "asignacion":
+        return <AsignacionExpedientes />;
     }
   }
 
@@ -74,6 +79,7 @@ export function AgenteShell({ session, onLogout }: Props) {
     historial: "Historial de dictámenes",
     auditoria: "Log de auditoría WORM",
     metricas: "Métricas operativas SNM",
+    asignacion: "Asignación de expedientes",
   }[view];
 
   return (

@@ -37,6 +37,7 @@ export interface LoginResponse {
   token: string;
   rol: "AGENTE" | "ADMIN";
   nombre: string;
+  id: string;
 }
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
@@ -54,12 +55,15 @@ export function logout() {
 
 export function saveSession(data: LoginResponse) {
   localStorage.setItem("sidem_token", data.token);
-  localStorage.setItem("sidem_user", JSON.stringify({ rol: data.rol, nombre: data.nombre }));
+  localStorage.setItem("sidem_user", JSON.stringify({ rol: data.rol, nombre: data.nombre, id: data.id }));
 }
 
-export function getSession(): { rol: "AGENTE" | "ADMIN"; nombre: string } | null {
+export function getSession(): { rol: "AGENTE" | "ADMIN"; nombre: string; id: string } | null {
   const raw = localStorage.getItem("sidem_user");
-  return raw ? JSON.parse(raw) : null;
+  if (!raw) return null;
+  const parsed = JSON.parse(raw);
+  if (!parsed.id) return null;
+  return parsed;
 }
 
 // ─── Applications ─────────────────────────────────────────────────────────────
@@ -82,11 +86,16 @@ export interface Application {
   fecha_nacimiento: string;
   vencimiento_pasaporte: string;
   monto_subsistencia: string;
+  agente_asignado_id: string | null;
 }
 
-export async function getApplications(params?: { estado?: string }): Promise<Application[]> {
-  const qs = params?.estado ? `?estado=${params.estado}` : "";
-  return request<Application[]>(`/applications${qs}`);
+export async function getApplications(params?: { estado?: string; agente_id?: string; grupo?: "ACTIVOS" | "RESUELTOS" }): Promise<Application[]> {
+  const qs = new URLSearchParams();
+  if (params?.estado) qs.set("estado", params.estado);
+  if (params?.agente_id) qs.set("agente_id", params.agente_id);
+  if (params?.grupo) qs.set("grupo", params.grupo);
+  const q = qs.toString() ? `?${qs}` : "";
+  return request<Application[]>(`/applications${q}`);
 }
 
 export async function getApplication(id: string): Promise<Application> {
@@ -125,6 +134,27 @@ export async function getAuditLog(params?: { fecha_desde?: string; fecha_hasta?:
   );
   const qs = new URLSearchParams(clean as Record<string, string>).toString();
   return request(`/audit-log${qs ? "?" + qs : ""}`);
+}
+
+// ─── Agentes ─────────────────────────────────────────────────────────────────
+
+export interface Agente {
+  id: string;
+  nombre_completo: string;
+  email: string;
+  rol: "AGENTE" | "ADMIN";
+}
+
+export async function getAgentes(): Promise<Agente[]> {
+  return request<Agente[]>("/agentes");
+}
+
+export async function assignAgent(applicationId: string, agente_id: string) {
+  return request(`/applications/${applicationId}/assign`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ agente_id }),
+  });
 }
 
 // ─── Metrics ─────────────────────────────────────────────────────────────────

@@ -34,10 +34,12 @@ interface AppDetail {
   interpol_alerta_detalle: string | null;
   url_solvencia: string | null;
   url_antecedentes: string | null;
+  agente_asignado_id: string | null;
 }
 
 interface Props {
   applicationId: string;
+  session: { rol: "AGENTE" | "ADMIN"; id: string };
   onVolver: () => void;
 }
 
@@ -48,7 +50,7 @@ const ESTADO_COLOR: Record<string, string> = {
   RECHAZADO: "bg-danger/15 text-danger",
 };
 
-export function ExpedienteDetalle({ applicationId, onVolver }: Props) {
+export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
   const [app, setApp] = useState<AppDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +92,7 @@ export function ExpedienteDetalle({ applicationId, onVolver }: Props) {
       setSubmitted(true);
       const updated = await getApplication(applicationId) as unknown as AppDetail;
       setApp(updated);
+      setTimeout(() => onVolver(), 2000);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error al emitir dictamen");
     } finally {
@@ -97,7 +100,15 @@ export function ExpedienteDetalle({ applicationId, onVolver }: Props) {
     }
   }
 
-  const puedeEmitir = app && ["PENDIENTE", "EN_EVALUACION"].includes(app.estado) && !submitted;
+  const esAsignado =
+    session.rol === "ADMIN" ||
+    (app?.agente_asignado_id != null && app.agente_asignado_id === session.id);
+
+  const puedeEmitir =
+    app != null &&
+    ["PENDIENTE", "EN_EVALUACION"].includes(app.estado) &&
+    !submitted &&
+    esAsignado;
 
   if (loading) {
     return (
@@ -203,6 +214,14 @@ export function ExpedienteDetalle({ applicationId, onVolver }: Props) {
         </Card>
       </div>
 
+      {!esAsignado && !submitted && app && ["PENDIENTE", "EN_EVALUACION"].includes(app.estado) && (
+        <Alert className="border-border bg-muted/50">
+          <AlertDescription className="text-muted-foreground text-sm">
+            Este expediente está asignado a otro agente. Solo el agente asignado puede emitir el dictamen.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {puedeEmitir && (
         <Card className="border-institutional/30">
           <CardHeader className="pb-3">
@@ -226,30 +245,43 @@ export function ExpedienteDetalle({ applicationId, onVolver }: Props) {
 
             <div className="space-y-1.5">
               <Label>Artículo legal citado <span className="text-danger">*</span></Label>
-              <Input
-                placeholder="Ej. Art. 50 Num. 4 DL3/2008"
-                value={articulo}
-                onChange={(e) => setArticulo(e.target.value)}
-              />
+              <Select value={articulo} onValueChange={setArticulo}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccione el artículo aplicable..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Art. 28 DL3/2008">Art. 28 — Aprobación de ingreso</SelectItem>
+                  <SelectItem value="Art. 43 Num. 2 DL3/2008">Art. 43 Num. 2 — Pasaporte inválido o vencido</SelectItem>
+                  <SelectItem value="Art. 50 Num. 1 DL3/2008">Art. 50 Num. 1 — Insolvencia económica</SelectItem>
+                  <SelectItem value="Art. 50 Num. 4 DL3/2008">Art. 50 Num. 4 — Antecedentes penales internacionales</SelectItem>
+                  <SelectItem value="Art. 50 Num. 5 DL3/2008">Art. 50 Num. 5 — Riesgo a la seguridad nacional</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">
-              <Label>Justificación <span className="text-danger">*</span></Label>
+              <Label>
+                Justificación <span className="text-danger">*</span>
+                <span className={cn("ml-2 text-xs font-normal", justificacion.trim().length < 20 ? "text-danger" : "text-muted-foreground")}>
+                  ({justificacion.trim().length}/20 mín.)
+                </span>
+              </Label>
               <Textarea
                 rows={4}
-                placeholder="Detalle la fundamentación jurídica de la decisión..."
+                placeholder="Detalle la fundamentación jurídica de la decisión (mínimo 20 caracteres)..."
                 value={justificacion}
                 onChange={(e) => setJustificacion(e.target.value)}
+                className={cn(justificacion.trim().length > 0 && justificacion.trim().length < 20 && "border-danger")}
               />
             </div>
 
             <div className="flex gap-3 pt-2">
               <Button
-                disabled={submitting || !decision}
+                disabled={submitting || !decision || !articulo || justificacion.trim().length < 20}
                 className={cn(
                   decision === "APROBADO" && "bg-success text-white hover:bg-success/90",
                   decision === "RECHAZADO" && "bg-danger text-white hover:bg-danger/90",
-                  !decision && "opacity-50",
+                  (!decision || !articulo || justificacion.trim().length < 20) && "opacity-50",
                 )}
                 onClick={handleVerdict}
               >

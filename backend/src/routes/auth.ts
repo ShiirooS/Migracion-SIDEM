@@ -45,7 +45,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       ip_origen: ip,
     });
 
-    res.json({ token, rol: agente.rol, nombre: agente.nombre_completo });
+    res.json({ token, rol: agente.rol, nombre: agente.nombre_completo, id: agente.id });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Error interno del servidor' });

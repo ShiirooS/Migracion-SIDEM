@@ -7,8 +7,8 @@
 INSERT INTO agentes (email, password_hash, nombre_completo, rol, activo)
 VALUES (
   'admin@sidem-pan.gob.pa',
-  -- Hash bcrypt de 'Admin2026!' — cambiar en produccion
-  '$2b$10$X9fJ5RwE.mQ7kLpN3vYuO.hGZiKsDtMnPrQ8sV4wX1yA6jB2cE5dG',
+  -- Hash bcrypt de 'Admin2026!' (cost 12) — cambiar en produccion
+  '$2b$12$lIokUjAWBGHJu1.4GJgfd.nrH.hMo9R70RyVFLu3owxPYfbQb0mES',
   'Administrador SIDEM-PAN',
   'ADMIN',
   TRUE
