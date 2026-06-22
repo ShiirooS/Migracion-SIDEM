@@ -61,8 +61,8 @@ test.describe.serial('Flujo completo SIDEM-PAN', () => {
     await page.getByRole('tab', { name: 'Ciudadano Extranjero' }).click();
     await page.getByRole('button', { name: 'Consultar estado de trámite' }).click();
 
-    await page.getByLabel(/ticket/i).fill(ticketNumber);
-    await page.getByLabel(/pasaporte/i).fill(SOLICITUD.numeroPasaporte);
+    await page.getByPlaceholder('PAN-2026-00001').fill(ticketNumber);
+    await page.getByPlaceholder('AB123456').fill(SOLICITUD.numeroPasaporte);
     await page.getByRole('button', { name: /consultar/i }).click();
 
     await expect(page.getByText('APROBADO')).toBeVisible({ timeout: 10_000 });

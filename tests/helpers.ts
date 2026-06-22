@@ -25,7 +25,6 @@ export const SOLICITUD = {
   montoSubsistencia: '1500',
 } as const;
 
-const PDF_HEADER = '%PDF-1.4';
 const MINIMAL_PDF = Buffer.from(
   `%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 3 3]/Parent 2 0 R>>endobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n190\n%%EOF`,
   'ascii',
@@ -77,30 +76,37 @@ export async function crearSolicitud(page: Page): Promise<string> {
   await page.goto('/');
   await page.getByRole('tab', { name: 'Ciudadano Extranjero' }).click();
   await page.getByRole('button', { name: 'Iniciar solicitud de evaluación' }).click();
-
   await page.waitForSelector('text=Wizard de Evaluación Migratoria', { timeout: 10_000 });
 
-  await page.getByLabel('Nombres').fill(SOLICITUD.nombres);
-  await page.getByLabel('Apellidos').fill(SOLICITUD.apellidos);
-  await page.getByLabel('Fecha de nacimiento').fill(SOLICITUD.fechaNacimiento);
-  await page.getByRole('combobox').first().click();
+  // Paso 0 — Identidad y Pasaporte
+  await page.getByPlaceholder('María Isabel').fill(SOLICITUD.nombres);
+  await page.getByPlaceholder('Fernández López').fill(SOLICITUD.apellidos);
+  await page.locator('input[type="date"]').first().fill(SOLICITUD.fechaNacimiento);
+
+  await page.getByRole('combobox').nth(0).click();
   await page.getByRole('option', { name: SOLICITUD.nacionalidad }).click();
-  await page.getByLabel('N.º de Pasaporte').fill(SOLICITUD.numeroPasaporte);
-  await page.getByLabel('Fecha de vencimiento del pasaporte').fill(SOLICITUD.vencimientoPasaporte);
-  await page.getByRole('combobox').last().click();
+
+  await page.getByPlaceholder('AB123456').fill(SOLICITUD.numeroPasaporte);
+  await page.locator('input[type="date"]').nth(1).fill(SOLICITUD.vencimientoPasaporte);
+
+  await page.getByRole('combobox').nth(1).click();
   await page.getByRole('option', { name: SOLICITUD.categoriaMigratoria }).click();
-  await page.getByLabel('Correo electrónico').fill(SOLICITUD.correoElectronico);
+
+  await page.getByPlaceholder('correo@ejemplo.com').fill(SOLICITUD.correoElectronico);
   await page.getByRole('button', { name: 'Siguiente' }).click();
 
-  await page.getByLabel('Monto declarado').fill(SOLICITUD.montoSubsistencia);
+  // Paso 1 — Solvencia Económica
+  await page.getByPlaceholder('0.00').fill(SOLICITUD.montoSubsistencia);
   const solvenciaPath = createTempPDF('solvencia.pdf');
   await page.locator('input[type="file"]').first().setInputFiles(solvenciaPath);
   await page.getByRole('button', { name: 'Siguiente' }).click();
 
+  // Paso 2 — Antecedentes Penales
   const antecedentesPath = createTempPDF('antecedentes.pdf');
   await page.locator('input[type="file"]').first().setInputFiles(antecedentesPath);
   await page.getByRole('button', { name: 'Someter Evaluación' }).click();
 
+  // Confirmación
   await page.waitForSelector('text=Solicitud recibida', { timeout: 15_000 });
   const ticketText = await page.locator('.font-mono.text-2xl').textContent();
   const ticket = ticketText?.replace('#', '').trim() ?? '';
