@@ -1,0 +1,14 @@
+{
+  "name": "migracion-sidem",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema de Debida Diligencia Migratoria — E2E tests",
+  "scripts": {
+    "test:e2e": "npx playwright test",
+    "test:e2e:headed": "npx playwright test --headed",
+    "test:e2e:debug": "npx playwright test --debug"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0"
+  }
+}
