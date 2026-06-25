@@ -194,14 +194,23 @@ export function ColaExpedientes({ modoHistorial = false, session, onSeleccionar 
                     <RiskBadge nivel={app.nivel_riesgo} />
                   </TableCell>
                   <TableCell>
-                    {app.interpol_alerta_encontrada ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-danger">
-                        <AlertTriangle className="h-3 w-3" />
-                        {app.interpol_alerta_tipo}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground">—</span>
-                    )}
+                    <div className="flex flex-col gap-0.5">
+                      {app.interpol_alerta_encontrada && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-danger">
+                          <AlertTriangle className="h-3 w-3" />
+                          INTERPOL
+                        </span>
+                      )}
+                      {app.ofac_alerta_encontrada && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-danger">
+                          <AlertTriangle className="h-3 w-3" />
+                          OFAC SDN
+                        </span>
+                      )}
+                      {!app.interpol_alerta_encontrada && !app.ofac_alerta_encontrada && (
+                        <span className="text-[10px] text-muted-foreground">—</span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <EstadoBadge estado={app.estado} />

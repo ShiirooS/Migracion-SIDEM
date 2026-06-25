@@ -32,6 +32,8 @@ interface AppDetail {
   interpol_alerta_encontrada: boolean;
   interpol_alerta_tipo: string | null;
   interpol_alerta_detalle: string | null;
+  ofac_alerta_encontrada: boolean;
+  ofac_alerta_detalle: string | null;
   url_solvencia: string | null;
   url_antecedentes: string | null;
   agente_asignado_id: string | null;
@@ -145,8 +147,15 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
       {app.interpol_alerta_encontrada && (
         <Alert className="border-danger/60 bg-danger/10">
           <AlertTriangle className="h-4 w-4 text-danger" />
-          <AlertTitle className="text-danger">Alerta: {app.interpol_alerta_tipo}</AlertTitle>
+          <AlertTitle className="text-danger">Alerta INTERPOL — {app.interpol_alerta_tipo}</AlertTitle>
           <AlertDescription className="text-danger/80">{app.interpol_alerta_detalle}</AlertDescription>
+        </Alert>
+      )}
+      {app.ofac_alerta_encontrada && (
+        <Alert className="border-danger/60 bg-danger/10">
+          <AlertTriangle className="h-4 w-4 text-danger" />
+          <AlertTitle className="text-danger">Alerta OFAC SDN</AlertTitle>
+          <AlertDescription className="text-danger/80">{app.ofac_alerta_detalle}</AlertDescription>
         </Alert>
       )}
 
@@ -175,11 +184,9 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <Row label="Nivel de riesgo" value={app.nivel_riesgo ?? "—"} />
-            <Row label="Score" value={String(app.score_riesgo ?? "—")} />
-            <Row label="Alerta INTERPOL/OFAC" value={app.interpol_alerta_encontrada ? "SÍ" : "No"} />
-            {app.interpol_alerta_tipo && (
-              <Row label="Tipo de alerta" value={app.interpol_alerta_tipo} />
-            )}
+            <Row label="Score (0–100)" value={String(app.score_riesgo ?? "—")} />
+            <Row label="Alerta INTERPOL" value={app.interpol_alerta_encontrada ? `SÍ — ${app.interpol_alerta_tipo}` : "No"} />
+            <Row label="Alerta OFAC SDN" value={app.ofac_alerta_encontrada ? "SÍ" : "No"} />
 
             <div className="mt-4 space-y-2 border-t pt-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
