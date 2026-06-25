@@ -147,7 +147,7 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
       {app.interpol_alerta_encontrada && (
         <Alert className="border-danger/60 bg-danger/10">
           <AlertTriangle className="h-4 w-4 text-danger" />
-          <AlertTitle className="text-danger">Alerta INTERPOL — {app.interpol_alerta_tipo}</AlertTitle>
+          <AlertTitle className="text-danger">Alerta INTERPOL — Red Notice</AlertTitle>
           <AlertDescription className="text-danger/80">{app.interpol_alerta_detalle}</AlertDescription>
         </Alert>
       )}
@@ -185,7 +185,7 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
           <CardContent className="space-y-3 text-sm">
             <Row label="Nivel de riesgo" value={app.nivel_riesgo ?? "—"} />
             <Row label="Score (0–100)" value={String(app.score_riesgo ?? "—")} />
-            <Row label="Alerta INTERPOL" value={app.interpol_alerta_encontrada ? `SÍ — ${app.interpol_alerta_tipo}` : "No"} />
+            <Row label="Alerta INTERPOL" value={app.interpol_alerta_encontrada ? "SÍ — Red Notice" : "No"} />
             <Row label="Alerta OFAC SDN" value={app.ofac_alerta_encontrada ? "SÍ" : "No"} />
 
             <div className="mt-4 space-y-2 border-t pt-3">

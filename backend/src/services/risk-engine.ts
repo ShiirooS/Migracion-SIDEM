@@ -71,25 +71,18 @@ export async function calcularRiesgo(params: {
   }
 
   // Verificar OFAC SDN por pasaporte
-  // BUG FIX: antes la guarda if (!interpol_alerta_encontrada) descartaba silenciosamente
-  // la alerta OFAC cuando INTERPOL ya había coincidido. Ahora se guardan siempre.
+  // Los campos ofac_alerta_* son independientes de interpol_alerta_*
   const ofacMatch = ofacRows.filter((r) => r.numero_pasaporte === params.numero_pasaporte);
   if (ofacMatch.length > 0) {
     score += 40;
     ofac_alerta_encontrada = true;
     ofac_alerta_detalle = ofacMatch[0].descripcion_alerta ?? 'Lista SDN OFAC';
-    // Rellenar campos legacy solo si INTERPOL no los ocupó (retrocompatibilidad)
-    if (!interpol_alerta_encontrada) {
-      interpol_alerta_encontrada = true;
-      interpol_alerta_tipo = 'OFAC_SDN';
-      interpol_alerta_detalle = ofac_alerta_detalle;
-    }
   }
 
-  // Verificar país restringido
+  // Verificar país restringido (Art. 6 Num. 4 DL3/2008 — atención especial migratoria)
   const paisMatch = paisRows.filter((r) => r.codigo_pais === params.nacionalidad_codigo);
   if (paisMatch.length > 0) {
-    score += 10;
+    score += 50;
     pais_restringido_encontrada = true;
   }
 
