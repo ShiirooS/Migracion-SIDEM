@@ -82,7 +82,7 @@ export async function calcularRiesgo(params: {
   // Verificar país restringido (Art. 6 Num. 4 DL3/2008 — atención especial migratoria)
   const paisMatch = paisRows.filter((r) => r.codigo_pais === params.nacionalidad_codigo);
   if (paisMatch.length > 0) {
-    score += 50;
+    score += 10;
     pais_restringido_encontrada = true;
   }
 
