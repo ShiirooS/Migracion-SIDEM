@@ -246,6 +246,7 @@ router.post(
           interpol_alerta_detalle: riesgo.interpol_alerta_detalle,
           ofac_alerta_encontrada: riesgo.ofac_alerta_encontrada,
           ofac_alerta_detalle: riesgo.ofac_alerta_detalle,
+          pais_restringido_encontrada: riesgo.pais_restringido_encontrada,
         })
         .select()
         .single();
@@ -337,7 +338,7 @@ router.get('/', requireAuth('AGENTE', 'ADMIN'), async (req: Request, res: Respon
   let query = supabase
     .from('applications')
     .select(
-      'id,ticket_number,nombres,apellidos,nacionalidad_codigo,categoria_migratoria,estado,nivel_riesgo,score_riesgo,interpol_alerta_encontrada,interpol_alerta_tipo,interpol_alerta_detalle,ofac_alerta_encontrada,ofac_alerta_detalle,created_at,numero_pasaporte,fecha_nacimiento,vencimiento_pasaporte,monto_subsistencia,agente_asignado_id'
+      'id,ticket_number,nombres,apellidos,nacionalidad_codigo,categoria_migratoria,estado,nivel_riesgo,score_riesgo,interpol_alerta_encontrada,interpol_alerta_tipo,interpol_alerta_detalle,ofac_alerta_encontrada,ofac_alerta_detalle,pais_restringido_encontrada,created_at,numero_pasaporte,fecha_nacimiento,vencimiento_pasaporte,monto_subsistencia,agente_asignado_id'
     )
     .order('created_at', { ascending: false })
     .limit(limit);

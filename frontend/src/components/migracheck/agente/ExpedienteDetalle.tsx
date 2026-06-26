@@ -34,6 +34,7 @@ interface AppDetail {
   interpol_alerta_detalle: string | null;
   ofac_alerta_encontrada: boolean;
   ofac_alerta_detalle: string | null;
+  pais_restringido_encontrada: boolean;
   url_solvencia: string | null;
   url_antecedentes: string | null;
   agente_asignado_id: string | null;
@@ -158,6 +159,15 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
           <AlertDescription className="text-danger/80">{app.ofac_alerta_detalle}</AlertDescription>
         </Alert>
       )}
+      {app.pais_restringido_encontrada && (
+        <Alert className="border-warning/60 bg-warning/10">
+          <AlertTriangle className="h-4 w-4 text-warning-foreground" />
+          <AlertTitle className="text-warning-foreground">Restricción de país — Atención especial migratoria</AlertTitle>
+          <AlertDescription className="text-warning-foreground/80">
+            Nacionalidad {app.nacionalidad_codigo} en lista de atención especial migratoria del SNM Panamá (Art. 6 Num. 4 DL3/2008).
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
@@ -187,6 +197,7 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
             <Row label="Score (0–100)" value={String(app.score_riesgo ?? "—")} />
             <Row label="Alerta INTERPOL" value={app.interpol_alerta_encontrada ? "SÍ — Red Notice" : "No"} />
             <Row label="Alerta OFAC SDN" value={app.ofac_alerta_encontrada ? "SÍ" : "No"} />
+            <Row label="Restricción de país" value={app.pais_restringido_encontrada ? `SÍ — ${app.nacionalidad_codigo}` : "No"} />
 
             <div className="mt-4 space-y-2 border-t pt-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">

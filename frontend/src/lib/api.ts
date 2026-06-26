@@ -83,6 +83,7 @@ export interface Application {
   interpol_alerta_detalle: string | null;
   ofac_alerta_encontrada: boolean;
   ofac_alerta_detalle: string | null;
+  pais_restringido_encontrada: boolean;
   created_at: string;
   numero_pasaporte: string;
   fecha_nacimiento: string;
