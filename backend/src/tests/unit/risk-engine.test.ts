@@ -94,8 +94,8 @@ describe('calcularRiesgo', () => {
 
     expect(result.score).toBe(40);
     expect(result.nivel).toBe('MEDIO');
-    expect(result.interpol_alerta_encontrada).toBe(true);
-    expect(result.interpol_alerta_tipo).toBe('OFAC_SDN');
+    expect(result.ofac_alerta_encontrada).toBe(true);
+    expect(result.interpol_alerta_encontrada).toBe(false);
   });
 
   it('returns ALTO with score 50 for INTERPOL passport match', async () => {
