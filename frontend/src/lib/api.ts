@@ -130,6 +130,37 @@ export async function submitVerdict(
   });
 }
 
+// ─── Subsanación (RF07) ───────────────────────────────────────────────────────
+
+export async function requestSubsanacion(applicationId: string, motivo: string) {
+  return request(`/applications/${applicationId}/subsanacion`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ motivo }),
+  });
+}
+
+export async function uploadCorrection(
+  applicationId: string,
+  data: { ticket_number: string; numero_pasaporte: string; tipo_documento: "solvencia" | "antecedentes"; file: File },
+) {
+  const formData = new FormData();
+  formData.append("ticket_number", data.ticket_number);
+  formData.append("numero_pasaporte", data.numero_pasaporte);
+  formData.append("tipo_documento", data.tipo_documento);
+  formData.append("documento", data.file);
+
+  const res = await fetch(`${BASE}/applications/${applicationId}/upload-correction`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body?.error ?? "Error del servidor");
+  }
+  return res.json();
+}
+
 // ─── Audit log ────────────────────────────────────────────────────────────────
 
 export async function getAuditLog(params?: { fecha_desde?: string; fecha_hasta?: string; agente_id?: string; expediente_id?: string }) {

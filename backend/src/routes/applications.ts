@@ -599,6 +599,133 @@ router.post('/:id/verdict', requireAuth('AGENTE', 'ADMIN'), async (req: Request,
   }
 });
 
+// POST /api/applications/:id/subsanacion — RF07: agente solicita corrección de documentos
+router.post('/:id/subsanacion', requireAuth('AGENTE', 'ADMIN'), async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { motivo } = req.body as { motivo: string };
+  const ip = req.ip ?? 'unknown';
+
+  if (!motivo?.trim() || motivo.trim().length < 20) {
+    res.status(422).json({ error: 'El motivo debe tener al menos 20 caracteres', field: 'motivo' });
+    return;
+  }
+
+  try {
+    const { data: app, error: appError } = await supabase
+      .from('applications')
+      .select('id,estado,agente_asignado_id')
+      .eq('id', id)
+      .single();
+    if (appError || !app) { res.status(404).json({ error: 'Expediente no encontrado' }); return; }
+
+    if (!['PENDIENTE', 'EN_EVALUACION'].includes(app.estado)) {
+      res.status(422).json({ error: 'El expediente no permite solicitar subsanación en su estado actual' });
+      return;
+    }
+
+    if (req.user!.rol === 'AGENTE' && app.agente_asignado_id !== req.user!.id) {
+      res.status(403).json({ error: 'Solo el agente asignado puede solicitar subsanación' });
+      return;
+    }
+
+    const { error: updateError } = await supabase
+      .from('applications')
+      .update({ estado: 'SUBSANACION_PENDIENTE', subsanacion_motivo: motivo.trim() })
+      .eq('id', id);
+    if (updateError) throw updateError;
+
+    await logAction({
+      accion: 'SUBSANACION_SOLICITADA',
+      usuario_id: req.user!.id,
+      expediente_id: id,
+      detalles: { motivo },
+      ip_origen: ip,
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('POST /subsanacion error:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// POST /api/applications/:id/upload-correction — RF07: solicitante sube documento corregido (público)
+router.post('/:id/upload-correction', upload.single('documento'), async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { ticket_number, numero_pasaporte, tipo_documento } = req.body as {
+    ticket_number: string;
+    numero_pasaporte: string;
+    tipo_documento: 'solvencia' | 'antecedentes';
+  };
+  const ip = req.ip ?? 'unknown';
+
+  if (!ticket_number || !numero_pasaporte || !tipo_documento || !req.file) {
+    res.status(400).json({ error: 'ticket_number, numero_pasaporte, tipo_documento y documento son requeridos' });
+    return;
+  }
+
+  if (!['solvencia', 'antecedentes'].includes(tipo_documento)) {
+    res.status(400).json({ error: 'tipo_documento debe ser solvencia o antecedentes' });
+    return;
+  }
+
+  if (req.file.mimetype !== 'application/pdf') {
+    res.status(422).json({ error: 'Solo se aceptan archivos PDF' });
+    return;
+  }
+
+  try {
+    const { data: app, error: appError } = await supabase
+      .from('applications')
+      .select('id,estado,numero_pasaporte,ticket_number')
+      .eq('id', id)
+      .eq('ticket_number', ticket_number)
+      .single();
+    if (appError || !app) { res.status(404).json({ error: 'Expediente no encontrado' }); return; }
+
+    if (app.estado !== 'SUBSANACION_PENDIENTE') {
+      res.status(422).json({ error: 'El expediente no está en estado de subsanación pendiente' });
+      return;
+    }
+
+    // Verificar identidad descifrando el pasaporte almacenado
+    let storedPasaporte: string;
+    try {
+      storedPasaporte = decrypt(app.numero_pasaporte);
+    } catch {
+      res.status(500).json({ error: 'Error interno verificando identidad' });
+      return;
+    }
+
+    if (storedPasaporte.toUpperCase() !== numero_pasaporte.trim().toUpperCase()) {
+      res.status(403).json({ error: 'Número de pasaporte incorrecto' });
+      return;
+    }
+
+    // Subir documento corregido a Storage (guardamos el path, no la URL firmada)
+    const storagePath = await subirPDF(req.file.buffer, req.file.originalname);
+
+    const column = tipo_documento === 'solvencia' ? 'ruta_comprobante_solvencia' : 'ruta_antecedentes_penales';
+    const { error: updateError } = await supabase
+      .from('applications')
+      .update({ estado: 'EN_EVALUACION', [column]: storagePath, subsanacion_motivo: null })
+      .eq('id', id);
+    if (updateError) throw updateError;
+
+    await logAction({
+      accion: 'DOCUMENTO_CORREGIDO',
+      expediente_id: id,
+      detalles: { tipo_documento },
+      ip_origen: ip,
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('POST /upload-correction error:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // PATCH /api/applications/:id/assign — RF05 asignación (solo ADMIN)
 router.patch('/:id/assign', requireAuth('ADMIN'), async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;

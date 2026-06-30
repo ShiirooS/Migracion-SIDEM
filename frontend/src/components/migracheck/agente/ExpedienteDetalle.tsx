@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getApplication, submitVerdict } from "@/lib/api";
+import { getApplication, submitVerdict, requestSubsanacion } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Loader2, AlertTriangle, FileText, ArrowLeft, Check, X,
   User, CreditCard, Globe, Calendar, Wallet, ShieldAlert,
-  ShieldCheck, ShieldX, Flag, ClipboardCheck,
+  ShieldCheck, ShieldX, Flag, ClipboardCheck, RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -172,9 +172,10 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [decision, setDecision] = useState<"APROBADO" | "RECHAZADO" | "">("");
+  const [decision, setDecision] = useState<"APROBADO" | "RECHAZADO" | "SUBSANACION" | "">("");
   const [articulo, setArticulo] = useState("");
   const [justificacion, setJustificacion] = useState("");
+  const [motivoSubsanacion, setMotivoSubsanacion] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -194,6 +195,27 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
   useEffect(() => { cargar(); }, [applicationId]);
 
   async function handleVerdict() {
+    if (decision === "SUBSANACION") {
+      if (motivoSubsanacion.trim().length < 20) {
+        toast.error("El motivo debe tener al menos 20 caracteres");
+        return;
+      }
+      setSubmitting(true);
+      try {
+        await requestSubsanacion(applicationId, motivoSubsanacion);
+        toast.success("Subsanación solicitada — el solicitante será notificado");
+        setSubmitted(true);
+        const updated = await getApplication(applicationId) as unknown as AppDetail;
+        setApp(updated);
+        setTimeout(() => onVolver(), 2000);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Error al solicitar subsanación");
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     if (!decision || !articulo.trim() || !justificacion.trim()) {
       toast.error("Todos los campos del dictamen son requeridos");
       return;
@@ -226,6 +248,9 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
     ["PENDIENTE", "EN_EVALUACION"].includes(app.estado) &&
     !submitted &&
     esAsignado;
+
+  const esperandoCorrecion =
+    app != null && app.estado === "SUBSANACION_PENDIENTE" && !submitted;
 
   if (loading) {
     return (
@@ -460,6 +485,19 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
         </div>
       </div>
 
+      {/* ── Esperando corrección del solicitante ──────────────── */}
+      {esperandoCorrecion && (
+        <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
+          <RotateCcw className="h-5 w-5 shrink-0 animate-spin text-amber-600" style={{ animationDuration: "3s" }} />
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Subsanación pendiente</p>
+            <p className="text-xs text-amber-700/80">
+              Se solicitó corrección de documentos. El expediente volverá a evaluación una vez que el solicitante suba el documento corregido.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── No asignado ───────────────────────────────────────── */}
       {!esAsignado && !submitted && app && ["PENDIENTE", "EN_EVALUACION"].includes(app.estado) && (
         <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
@@ -489,12 +527,12 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
               <Label className="text-sm font-semibold">
                 Decisión <span className="text-red-500">*</span>
               </Label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <button
                   type="button"
                   onClick={() => setDecision("APROBADO")}
                   className={cn(
-                    "flex items-center justify-center gap-2 rounded-xl border-2 py-4 text-sm font-semibold transition-all",
+                    "flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 py-4 text-sm font-semibold transition-all",
                     decision === "APROBADO"
                       ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                       : "border-border bg-background text-muted-foreground hover:border-emerald-300 hover:bg-emerald-50/50",
@@ -507,7 +545,7 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
                   type="button"
                   onClick={() => setDecision("RECHAZADO")}
                   className={cn(
-                    "flex items-center justify-center gap-2 rounded-xl border-2 py-4 text-sm font-semibold transition-all",
+                    "flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 py-4 text-sm font-semibold transition-all",
                     decision === "RECHAZADO"
                       ? "border-red-500 bg-red-50 text-red-700"
                       : "border-border bg-background text-muted-foreground hover:border-red-300 hover:bg-red-50/50",
@@ -516,66 +554,123 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
                   <X className={cn("h-5 w-5", decision === "RECHAZADO" ? "text-red-600" : "text-muted-foreground")} />
                   Rechazar
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setDecision("SUBSANACION")}
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 py-4 text-sm font-semibold transition-all",
+                    decision === "SUBSANACION"
+                      ? "border-amber-500 bg-amber-50 text-amber-700"
+                      : "border-border bg-background text-muted-foreground hover:border-amber-300 hover:bg-amber-50/50",
+                  )}
+                >
+                  <RotateCcw className={cn("h-5 w-5", decision === "SUBSANACION" ? "text-amber-600" : "text-muted-foreground")} />
+                  Subsanar
+                </button>
               </div>
             </div>
 
-            <Separator />
+            {/* Campos subsanación */}
+            {decision === "SUBSANACION" && (
+              <>
+                <Separator />
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">
+                      Motivo de subsanación <span className="text-red-500">*</span>
+                    </Label>
+                    <span className={cn(
+                      "text-xs tabular-nums",
+                      motivoSubsanacion.trim().length === 0 && "text-muted-foreground",
+                      motivoSubsanacion.trim().length > 0 && motivoSubsanacion.trim().length < 20 && "text-red-500 font-medium",
+                      motivoSubsanacion.trim().length >= 20 && "text-emerald-600 font-medium",
+                    )}>
+                      {motivoSubsanacion.trim().length} / 20 mín.
+                    </span>
+                  </div>
+                  <Textarea
+                    rows={3}
+                    placeholder="Indique qué documento o información debe corregir el solicitante…"
+                    value={motivoSubsanacion}
+                    onChange={(e) => setMotivoSubsanacion(e.target.value)}
+                    className={cn(
+                      "resize-none",
+                      motivoSubsanacion.trim().length > 0 && motivoSubsanacion.trim().length < 20 && "border-red-400 focus-visible:ring-red-400",
+                      motivoSubsanacion.trim().length >= 20 && "border-amber-400",
+                    )}
+                  />
+                </div>
+              </>
+            )}
 
-            {/* Artículo */}
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold">
-                Artículo legal citado <span className="text-red-500">*</span>
-              </Label>
-              <Select value={articulo} onValueChange={setArticulo}>
-                <SelectTrigger className="h-10">
-                  <SelectValue placeholder="Seleccione el artículo aplicable…" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Art. 28 DL3/2008">Art. 28 — Aprobación de ingreso</SelectItem>
-                  <SelectItem value="Art. 43 Num. 2 DL3/2008">Art. 43 Num. 2 — Pasaporte inválido o vencido</SelectItem>
-                  <SelectItem value="Art. 50 Num. 1 DL3/2008">Art. 50 Num. 1 — Insolvencia económica</SelectItem>
-                  <SelectItem value="Art. 50 Num. 4 DL3/2008">Art. 50 Num. 4 — Antecedentes penales internacionales</SelectItem>
-                  <SelectItem value="Art. 50 Num. 5 DL3/2008">Art. 50 Num. 5 — Riesgo a la seguridad nacional</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Campos dictamen (no subsanación) */}
+            {decision !== "SUBSANACION" && (
+              <>
+                <Separator />
 
-            {/* Justificación */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-semibold">
-                  Justificación <span className="text-red-500">*</span>
-                </Label>
-                <span className={cn(
-                  "text-xs tabular-nums",
-                  justificacion.trim().length === 0 && "text-muted-foreground",
-                  justificacion.trim().length > 0 && justificacion.trim().length < 20 && "text-red-500 font-medium",
-                  justificacion.trim().length >= 20 && "text-emerald-600 font-medium",
-                )}>
-                  {justificacion.trim().length} / 20 mín.
-                </span>
-              </div>
-              <Textarea
-                rows={4}
-                placeholder="Detalle la fundamentación jurídica de la decisión (mínimo 20 caracteres)…"
-                value={justificacion}
-                onChange={(e) => setJustificacion(e.target.value)}
-                className={cn(
-                  "resize-none",
-                  justificacion.trim().length > 0 && justificacion.trim().length < 20 && "border-red-400 focus-visible:ring-red-400",
-                  justificacion.trim().length >= 20 && "border-emerald-400",
-                )}
-              />
-            </div>
+                {/* Artículo */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">
+                    Artículo legal citado <span className="text-red-500">*</span>
+                  </Label>
+                  <Select value={articulo} onValueChange={setArticulo}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Seleccione el artículo aplicable…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Art. 28 DL3/2008">Art. 28 — Aprobación de ingreso</SelectItem>
+                      <SelectItem value="Art. 43 Num. 2 DL3/2008">Art. 43 Num. 2 — Pasaporte inválido o vencido</SelectItem>
+                      <SelectItem value="Art. 50 Num. 1 DL3/2008">Art. 50 Num. 1 — Insolvencia económica</SelectItem>
+                      <SelectItem value="Art. 50 Num. 4 DL3/2008">Art. 50 Num. 4 — Antecedentes penales internacionales</SelectItem>
+                      <SelectItem value="Art. 50 Num. 5 DL3/2008">Art. 50 Num. 5 — Riesgo a la seguridad nacional</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Justificación */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">
+                      Justificación <span className="text-red-500">*</span>
+                    </Label>
+                    <span className={cn(
+                      "text-xs tabular-nums",
+                      justificacion.trim().length === 0 && "text-muted-foreground",
+                      justificacion.trim().length > 0 && justificacion.trim().length < 20 && "text-red-500 font-medium",
+                      justificacion.trim().length >= 20 && "text-emerald-600 font-medium",
+                    )}>
+                      {justificacion.trim().length} / 20 mín.
+                    </span>
+                  </div>
+                  <Textarea
+                    rows={4}
+                    placeholder="Detalle la fundamentación jurídica de la decisión (mínimo 20 caracteres)…"
+                    value={justificacion}
+                    onChange={(e) => setJustificacion(e.target.value)}
+                    className={cn(
+                      "resize-none",
+                      justificacion.trim().length > 0 && justificacion.trim().length < 20 && "border-red-400 focus-visible:ring-red-400",
+                      justificacion.trim().length >= 20 && "border-emerald-400",
+                    )}
+                  />
+                </div>
+              </>
+            )}
 
             {/* Confirmar */}
             <Button
-              disabled={submitting || !decision || !articulo || justificacion.trim().length < 20}
+              disabled={
+                submitting ||
+                !decision ||
+                (decision === "SUBSANACION" && motivoSubsanacion.trim().length < 20) ||
+                (decision !== "SUBSANACION" && (!articulo || justificacion.trim().length < 20))
+              }
               onClick={handleVerdict}
               className={cn(
                 "h-11 w-full text-sm font-semibold",
                 decision === "APROBADO" && "bg-emerald-600 hover:bg-emerald-700 text-white",
                 decision === "RECHAZADO" && "bg-red-600 hover:bg-red-700 text-white",
+                decision === "SUBSANACION" && "bg-amber-600 hover:bg-amber-700 text-white",
                 !decision && "bg-primary",
               )}
             >
@@ -585,7 +680,9 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
                   ? <><Check className="mr-2 h-4 w-4" /> Confirmar aprobación</>
                   : decision === "RECHAZADO"
                     ? <><X className="mr-2 h-4 w-4" /> Confirmar rechazo</>
-                    : "Confirmar dictamen"}
+                    : decision === "SUBSANACION"
+                      ? <><RotateCcw className="mr-2 h-4 w-4" /> Solicitar subsanación</>
+                      : "Confirmar dictamen"}
             </Button>
           </CardContent>
         </Card>
