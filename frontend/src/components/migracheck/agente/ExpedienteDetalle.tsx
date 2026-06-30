@@ -79,7 +79,7 @@ function ScoreGauge({ score, nivel }: { score: number; nivel: string | null }) {
             stroke={nivel === "ALTO" ? "#ef4444" : nivel === "MEDIO" ? "#f59e0b" : "#10b981"}
             strokeWidth="8" strokeLinecap="round"
             strokeDasharray={`${dash} ${circ}`}
-            style={{ transition: "stroke-dasharray 0.6s ease" }} />
+            style={{ transition: "stroke-dasharray 0.3s ease" }} />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className={cn("text-2xl font-bold leading-none", cfg.cls)}>{score}</span>
@@ -136,7 +136,7 @@ function DataRow({ icon: Icon, label, value, mono }: {
   icon: React.ElementType; label: string; value: string; mono?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/40">
+    <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-150 hover:bg-muted/40">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/60">
         <Icon className="h-3.5 w-3.5 text-muted-foreground" />
       </div>
@@ -446,7 +446,7 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
             <CardContent className="space-y-2 pt-1">
               {app.url_solvencia ? (
                 <a href={app.url_solvencia} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-3 rounded-lg border border-dashed p-3 text-sm transition-colors hover:border-institutional/50 hover:bg-muted/40"
+                  className="flex items-center gap-3 rounded-lg border border-dashed p-3 text-sm transition-colors duration-150 hover:border-institutional/50 hover:bg-muted/40"
                 >
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50">
                     <FileText className="h-4 w-4 text-blue-600" />
@@ -464,7 +464,7 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
               )}
               {app.url_antecedentes ? (
                 <a href={app.url_antecedentes} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-3 rounded-lg border border-dashed p-3 text-sm transition-colors hover:border-institutional/50 hover:bg-muted/40"
+                  className="flex items-center gap-3 rounded-lg border border-dashed p-3 text-sm transition-colors duration-150 hover:border-institutional/50 hover:bg-muted/40"
                 >
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-purple-50">
                     <FileText className="h-4 w-4 text-purple-600" />
@@ -510,8 +510,8 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
 
       {/* ── Dictamen ──────────────────────────────────────────── */}
       {puedeEmitir && (
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="rounded-t-xl border-b bg-slate-50 pb-4">
+        <Card className="border-border shadow-sm">
+          <CardHeader className="rounded-t-xl border-b bg-surface pb-4">
             <CardTitle className="flex items-center gap-2 text-base">
               <ClipboardCheck className="h-5 w-5 text-institutional" />
               Emitir dictamen

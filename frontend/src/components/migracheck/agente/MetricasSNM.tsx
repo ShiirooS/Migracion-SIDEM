@@ -69,7 +69,7 @@ function KpiCard({
   color: string; bg: string; sub?: string;
 }) {
   return (
-    <Card className="relative overflow-hidden border-0 shadow-sm">
+    <Card className="relative overflow-hidden shadow-sm">
       <div className={cn("absolute inset-0 opacity-[0.06]", bg)} />
       <CardContent className="relative pt-5 pb-4">
         <div className="flex items-start justify-between">
@@ -78,8 +78,9 @@ function KpiCard({
             <p className={cn("mt-1 text-3xl font-bold tabular-nums", color)}>{value}</p>
             {sub && <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>}
           </div>
-          <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", bg, "bg-opacity-15")}>
-            <Icon className={cn("h-5 w-5", color)} />
+          <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl">
+            <div className={cn("absolute inset-0 opacity-15", bg)} />
+            <Icon className={cn("relative h-5 w-5", color)} />
           </div>
         </div>
       </CardContent>
@@ -102,7 +103,7 @@ function HBar({ label, value, total, color }: {
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-muted">
         <div
-          className={cn("h-full rounded-full transition-all duration-700", color)}
+          className={cn("h-full rounded-full transition-all duration-[200ms]", color)}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -295,7 +296,7 @@ export function MetricasSNM() {
                   { label: "ALTO",      color: "bg-red-500",   textColor: "text-red-600",   key: "ALTO" },
                   { label: "MEDIO",     color: "bg-amber-500", textColor: "text-amber-600",  key: "MEDIO" },
                   { label: "BAJO",      color: "bg-emerald-500", textColor: "text-emerald-600", key: "BAJO" },
-                  { label: "Sin score", color: "bg-slate-400", textColor: "text-slate-500",  key: "SIN_SCORE" },
+                  { label: "Sin score", color: "bg-muted-foreground/50", textColor: "text-muted-foreground", key: "SIN_SCORE" },
                 ].map(({ label, color, textColor, key }) => {
                   const val = metrics.por_riesgo[key] ?? 0;
                   const pct = metrics.total > 0 ? Math.round((val / metrics.total) * 100) : 0;
@@ -384,11 +385,11 @@ export function MetricasSNM() {
               </div>
               <div className="flex h-3 overflow-hidden rounded-full bg-muted">
                 <div
-                  className="bg-emerald-500 transition-all duration-700"
+                  className="bg-emerald-500 transition-all duration-[200ms]"
                   style={{ width: `${tasaResolucion}%` }}
                 />
                 <div
-                  className="bg-red-500 transition-all duration-700"
+                  className="bg-red-500 transition-all duration-[200ms]"
                   style={{ width: `${100 - tasaResolucion}%` }}
                 />
               </div>

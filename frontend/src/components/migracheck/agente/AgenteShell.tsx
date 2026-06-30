@@ -99,11 +99,11 @@ export function AgenteShell({ session, onLogout }: Props) {
             </div>
           </div>
 
-          <div className="mt-4 rounded-md bg-institutional-hover/30 px-3 py-2.5">
+          <div className="mt-4 rounded-lg border border-sidebar-border/50 bg-institutional-hover/20 px-3 py-2.5">
             <p className="text-xs font-semibold text-institutional-foreground">{session.nombre}</p>
             <Badge
               variant="outline"
-              className="mt-1 border-gold/40 bg-gold/10 text-[10px] text-gold"
+              className="mt-1 border-gold/50 bg-gold/10 text-[10px] font-semibold text-gold"
             >
               {session.rol}
             </Badge>
@@ -130,7 +130,7 @@ export function AgenteShell({ session, onLogout }: Props) {
                 <button
                   onClick={() => { setView(id); setSelectedId(null); }}
                   className={cn(
-                    "flex w-full cursor-pointer items-center gap-3 rounded-md py-2.5 text-sm transition-colors",
+                    "flex w-full cursor-pointer items-center gap-3 rounded-md py-2.5 text-sm transition-colors duration-150",
                     isActive
                       ? "bg-sidebar-accent pl-4 font-medium text-sidebar-foreground"
                       : "pl-3 text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
@@ -172,7 +172,7 @@ export function AgenteShell({ session, onLogout }: Props) {
                     <button
                       onClick={() => { setView(id); setSelectedId(null); }}
                       className={cn(
-                        "flex w-full cursor-pointer items-center gap-3 rounded-md py-2.5 text-sm transition-colors",
+                        "flex w-full cursor-pointer items-center gap-3 rounded-md py-2.5 text-sm transition-colors duration-150",
                         isActive
                           ? "bg-sidebar-accent pl-4 font-medium text-sidebar-foreground"
                           : "pl-3 text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
@@ -204,7 +204,7 @@ export function AgenteShell({ session, onLogout }: Props) {
 
       {/* Contenido principal */}
       <div className="ml-64 flex min-h-screen flex-col">
-        <header className="sticky top-0 z-20 border-b border-border bg-background/95 px-8 py-5 backdrop-blur">
+        <header className="sticky top-0 z-20 border-b border-border bg-background/98 px-8 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/90">
           <h1 className="font-serif text-2xl font-bold text-foreground">{viewTitle}</h1>
           <p className="text-sm text-muted-foreground">
             Panel de {session.rol === "ADMIN" ? "Administración" : "Agente de Cumplimiento Migratorio"}
