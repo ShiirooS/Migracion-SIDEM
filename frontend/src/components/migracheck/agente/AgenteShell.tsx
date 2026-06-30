@@ -31,9 +31,9 @@ const NAV_AGENTE = [
 ];
 
 const NAV_ADMIN = [
+  { id: "metricas" as View, label: "Métricas SNM", icon: BarChart3 },
   { id: "asignacion" as View, label: "Asignar expedientes", icon: ClipboardCheck },
   { id: "auditoria" as View, label: "Auditoría WORM", icon: Shield },
-  { id: "metricas" as View, label: "Métricas SNM", icon: BarChart3 },
 ];
 
 export function AgenteShell({ session, onLogout }: Props) {

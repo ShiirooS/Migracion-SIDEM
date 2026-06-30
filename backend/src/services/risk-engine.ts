@@ -7,6 +7,9 @@ export interface RiskResult {
   interpol_alerta_encontrada: boolean;
   interpol_alerta_tipo: string | null;
   interpol_alerta_detalle: string | null;
+  ofac_alerta_encontrada: boolean;
+  ofac_alerta_detalle: string | null;
+  pais_restringido_encontrada: boolean;
 }
 
 // Minimal shape we need from a control_lists row
@@ -27,6 +30,9 @@ export async function calcularRiesgo(params: {
   let interpol_alerta_encontrada = false;
   let interpol_alerta_tipo: string | null = null;
   let interpol_alerta_detalle: string | null = null;
+  let ofac_alerta_encontrada = false;
+  let ofac_alerta_detalle: string | null = null;
+  let pais_restringido_encontrada = false;
 
   const nombreCompleto = `${params.nombres} ${params.apellidos}`;
 
@@ -65,20 +71,19 @@ export async function calcularRiesgo(params: {
   }
 
   // Verificar OFAC SDN por pasaporte
+  // Los campos ofac_alerta_* son independientes de interpol_alerta_*
   const ofacMatch = ofacRows.filter((r) => r.numero_pasaporte === params.numero_pasaporte);
   if (ofacMatch.length > 0) {
     score += 40;
-    if (!interpol_alerta_encontrada) {
-      interpol_alerta_encontrada = true;
-      interpol_alerta_tipo = 'OFAC_SDN';
-      interpol_alerta_detalle = ofacMatch[0].descripcion_alerta ?? 'Lista SDN OFAC';
-    }
+    ofac_alerta_encontrada = true;
+    ofac_alerta_detalle = ofacMatch[0].descripcion_alerta ?? 'Lista SDN OFAC';
   }
 
-  // Verificar país restringido
+  // Verificar país restringido (Art. 6 Num. 4 DL3/2008 — atención especial migratoria)
   const paisMatch = paisRows.filter((r) => r.codigo_pais === params.nacionalidad_codigo);
   if (paisMatch.length > 0) {
     score += 10;
+    pais_restringido_encontrada = true;
   }
 
   const nivel: 'BAJO' | 'MEDIO' | 'ALTO' =
@@ -90,5 +95,8 @@ export async function calcularRiesgo(params: {
     interpol_alerta_encontrada,
     interpol_alerta_tipo,
     interpol_alerta_detalle,
+    ofac_alerta_encontrada,
+    ofac_alerta_detalle,
+    pais_restringido_encontrada,
   };
 }

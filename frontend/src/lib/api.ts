@@ -81,6 +81,9 @@ export interface Application {
   interpol_alerta_encontrada: boolean;
   interpol_alerta_tipo: string | null;
   interpol_alerta_detalle: string | null;
+  ofac_alerta_encontrada: boolean;
+  ofac_alerta_detalle: string | null;
+  pais_restringido_encontrada: boolean;
   created_at: string;
   numero_pasaporte: string;
   fecha_nacimiento: string;
@@ -95,7 +98,8 @@ export async function getApplications(params?: { estado?: string; agente_id?: st
   if (params?.agente_id) qs.set("agente_id", params.agente_id);
   if (params?.grupo) qs.set("grupo", params.grupo);
   const q = qs.toString() ? `?${qs}` : "";
-  return request<Application[]>(`/applications${q}`);
+  const res = await request<{ data: Application[]; nextCursor: string | null }>(`/applications${q}`);
+  return res.data;
 }
 
 export async function getApplication(id: string): Promise<Application> {

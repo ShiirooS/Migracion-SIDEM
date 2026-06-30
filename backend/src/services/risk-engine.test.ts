@@ -74,7 +74,8 @@ describe('calcularRiesgo — motor de scoring (RF04)', () => {
     const r = await calcularRiesgo(persona);
     expect(r.score).toBe(40);
     expect(r.nivel).toBe('MEDIO');
-    expect(r.interpol_alerta_tipo).toBe('OFAC_SDN');
+    expect(r.ofac_alerta_encontrada).toBe(true);
+    expect(r.interpol_alerta_encontrada).toBe(false);
   });
 
   it('INTERPOL + país restringido → suma acumulada 60 y nivel ALTO', async () => {

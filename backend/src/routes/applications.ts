@@ -244,6 +244,9 @@ router.post(
           interpol_alerta_encontrada: riesgo.interpol_alerta_encontrada,
           interpol_alerta_tipo: riesgo.interpol_alerta_tipo,
           interpol_alerta_detalle: riesgo.interpol_alerta_detalle,
+          ofac_alerta_encontrada: riesgo.ofac_alerta_encontrada,
+          ofac_alerta_detalle: riesgo.ofac_alerta_detalle,
+          pais_restringido_encontrada: riesgo.pais_restringido_encontrada,
         })
         .select()
         .single();
@@ -269,14 +272,8 @@ router.post(
           interpol_alerta_tipo: riesgo.interpol_alerta_tipo,
           factores: {
             interpol: riesgo.interpol_alerta_tipo === 'INTERPOL_RED_NOTICE' ? 50 : 0,
-            ofac: riesgo.interpol_alerta_tipo === 'OFAC_SDN' ? 40 : 0,
-            pais_restringido:
-              riesgo.score -
-              (riesgo.interpol_alerta_tipo === 'INTERPOL_RED_NOTICE'
-                ? 50
-                : riesgo.interpol_alerta_tipo === 'OFAC_SDN'
-                  ? 40
-                  : 0),
+            ofac: riesgo.ofac_alerta_encontrada ? 40 : 0,
+            pais_restringido: riesgo.pais_restringido_encontrada ? 10 : 0,
           },
         },
         ip_origen: ip,
@@ -323,11 +320,16 @@ router.post(
  *         description: Lista paginada de expedientes
  */
 // GET /api/applications — SCRUM-36/SCRUM-52 (agente/admin) with cursor pagination
+const ESTADOS_ACTIVOS = ['PENDIENTE', 'EN_EVALUACION', 'SUBSANACION_PENDIENTE'];
+const ESTADOS_RESUELTOS = ['APROBADO', 'RECHAZADO'];
+
 router.get('/', requireAuth('AGENTE', 'ADMIN'), async (req: Request, res: Response): Promise<void> => {
-  const { estado, cursor, limit: limitStr } = req.query as {
+  const { estado, cursor, limit: limitStr, grupo, agente_id } = req.query as {
     estado?: string;
     cursor?: string;
     limit?: string;
+    grupo?: 'ACTIVOS' | 'RESUELTOS';
+    agente_id?: string;
   };
 
   // SCRUM-52: cursor-based pagination
@@ -336,12 +338,21 @@ router.get('/', requireAuth('AGENTE', 'ADMIN'), async (req: Request, res: Respon
   let query = supabase
     .from('applications')
     .select(
-      'id,ticket_number,nombres,apellidos,nacionalidad_codigo,categoria_migratoria,estado,nivel_riesgo,score_riesgo,interpol_alerta_encontrada,interpol_alerta_tipo,interpol_alerta_detalle,created_at,numero_pasaporte,fecha_nacimiento,vencimiento_pasaporte,monto_subsistencia,agente_asignado_id'
+      'id,ticket_number,nombres,apellidos,nacionalidad_codigo,categoria_migratoria,estado,nivel_riesgo,score_riesgo,interpol_alerta_encontrada,interpol_alerta_tipo,interpol_alerta_detalle,ofac_alerta_encontrada,ofac_alerta_detalle,pais_restringido_encontrada,created_at,numero_pasaporte,fecha_nacimiento,vencimiento_pasaporte,monto_subsistencia,agente_asignado_id'
     )
     .order('created_at', { ascending: false })
     .limit(limit);
 
-  if (estado) query = query.eq('estado', estado);
+  if (estado) {
+    query = query.eq('estado', estado);
+  } else if (grupo === 'ACTIVOS') {
+    query = query.in('estado', ESTADOS_ACTIVOS);
+  } else if (grupo === 'RESUELTOS') {
+    query = query.in('estado', ESTADOS_RESUELTOS);
+  }
+
+  if (agente_id) query = query.eq('agente_asignado_id', agente_id);
+
   // Cursor: only return rows older than the cursor timestamp
   if (cursor) query = query.lt('created_at', cursor);
 
