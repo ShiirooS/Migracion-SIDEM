@@ -53,7 +53,7 @@ const ESTADO_CFG: Record<string, { label: string; cls: string }> = {
   EN_EVALUACION:         { label: "En evaluación",       cls: "bg-blue-100 text-blue-800 border border-blue-300" },
   APROBADO:              { label: "Aprobado",            cls: "bg-emerald-100 text-emerald-800 border border-emerald-300" },
   RECHAZADO:             { label: "Rechazado",           cls: "bg-red-100 text-red-800 border border-red-300" },
-  SUBSANACION_PENDIENTE: { label: "Subsanación pend.",   cls: "bg-slate-100 text-slate-700 border border-slate-300" },
+  SUBSANACION_PENDIENTE: { label: "Subsanación pend.",   cls: "bg-orange-100 text-orange-700 border border-orange-300" },
 };
 
 const NIVEL_CFG: Record<string, { cls: string; bar: string; label: string }> = {
@@ -277,14 +277,14 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
     <div className="space-y-6">
 
       {/* ── Header ─────────────────────────────────────────────── */}
-      <div className="overflow-hidden rounded-2xl border bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white shadow-lg">
+      <div className="overflow-hidden rounded-2xl border bg-institutional text-institutional-foreground shadow-lg">
         <div className="p-6">
           <div className="mb-4 flex items-center justify-between">
             <Button
               variant="ghost"
               size="sm"
               onClick={onVolver}
-              className="gap-1.5 text-slate-300 hover:bg-white/10 hover:text-white"
+              className="gap-1.5 text-institutional-foreground/70 hover:bg-institutional-hover hover:text-institutional-foreground"
             >
               <ArrowLeft className="h-4 w-4" /> Volver a la cola
             </Button>
@@ -295,19 +295,19 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="mb-1 font-mono text-xs tracking-widest text-slate-400">
+              <p className="mb-1 font-mono text-xs tracking-widest text-institutional-foreground/50">
                 EXPEDIENTE #{app.ticket_number}
               </p>
               <h1 className="text-2xl font-bold tracking-tight">
                 {app.nombres} {app.apellidos}
               </h1>
-              <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-400">
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-institutional-foreground/60">
                 <span className="flex items-center gap-1">
                   <Globe className="h-3.5 w-3.5" /> {app.nacionalidad_codigo}
                 </span>
-                <span className="text-slate-600">·</span>
+                <span className="text-institutional-foreground/30">·</span>
                 <span>{app.categoria_migratoria}</span>
-                <span className="text-slate-600">·</span>
+                <span className="text-institutional-foreground/30">·</span>
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3.5 w-3.5" />
                   {new Date(app.fecha_nacimiento).toLocaleDateString("es-PA")}
@@ -316,9 +316,9 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
             </div>
 
             {/* Score gauge en el header */}
-            <div className="flex items-center gap-4 rounded-xl bg-white/5 px-5 py-3">
+            <div className="flex items-center gap-4 rounded-xl bg-institutional-foreground/5 px-5 py-3">
               <ScoreGauge score={app.score_riesgo ?? 0} nivel={app.nivel_riesgo} />
-              <div className="space-y-1 text-xs text-slate-400">
+              <div className="space-y-1 text-xs text-institutional-foreground/60">
                 <p className={cn("flex items-center gap-1.5", app.interpol_alerta_encontrada ? "text-red-400" : "")}>
                   {app.interpol_alerta_encontrada ? <ShieldAlert className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3 opacity-40" />}
                   INTERPOL
@@ -337,8 +337,8 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
         </div>
 
         {/* Barra de ponderación */}
-        <div className="border-t border-white/10 bg-white/5 px-6 py-3">
-          <div className="flex items-center gap-4 text-[11px] text-slate-400">
+        <div className="border-t border-institutional-foreground/10 bg-institutional-foreground/5 px-6 py-3">
+          <div className="flex items-center gap-4 text-[11px] text-institutional-foreground/50">
             <span className="shrink-0">Ponderación</span>
             <div className="flex flex-1 items-center gap-1">
               {app.interpol_alerta_encontrada && (
@@ -362,7 +362,7 @@ export function ExpedienteDetalle({ applicationId, session, onVolver }: Props) {
                 </div>
               )}
             </div>
-            <span className="shrink-0 font-mono font-bold text-white">
+            <span className="shrink-0 font-mono font-bold text-institutional-foreground">
               = {app.score_riesgo ?? 0} pts
             </span>
           </div>
