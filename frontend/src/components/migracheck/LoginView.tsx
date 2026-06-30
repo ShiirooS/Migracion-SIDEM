@@ -57,8 +57,8 @@ export function LoginView({ onLogin, onSolicitud, onConsulta }: Props) {
           <p className="mt-3 max-w-md text-balance text-base text-institutional-foreground/80">
             Sistema Inteligente de Evaluación Migratoria
           </p>
-          <p className="mt-6 max-w-sm border-t border-gold/30 pt-6 font-serif text-sm italic text-gold">
-            "Protegiendo nuestras fronteras."
+          <p className="mt-6 max-w-sm border-t border-gold/30 pt-6 text-[11px] font-semibold uppercase tracking-[0.18em] text-gold/80">
+            Decreto Ley 3 de 2008 · Protección de Fronteras
           </p>
         </div>
 

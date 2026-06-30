@@ -120,31 +120,41 @@ export function AgenteShell({ session, onLogout }: Props) {
           {[
             { id: "cola" as View, label: "Cola de expedientes", icon: Inbox },
             { id: "historial" as View, label: "Historial de dictámenes", icon: History },
-          ].map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => { setView(id); setSelectedId(null); }}
-              className={cn(
-                "flex w-full cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors",
-                (view === id || (view === "detalle" && id === "cola"))
-                  ? "bg-sidebar-accent text-sidebar-foreground"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              <span>{label}</span>
-            </button>
-          ))}
+          ].map(({ id, label, icon: Icon }) => {
+            const isActive = view === id || (view === "detalle" && id === "cola");
+            return (
+              <div key={id} className="relative">
+                {isActive && (
+                  <div className="absolute inset-y-1.5 left-0 w-0.5 rounded-r-full bg-gold" />
+                )}
+                <button
+                  onClick={() => { setView(id); setSelectedId(null); }}
+                  className={cn(
+                    "flex w-full cursor-pointer items-center gap-3 rounded-md py-2.5 text-sm transition-colors",
+                    isActive
+                      ? "bg-sidebar-accent pl-4 font-medium text-sidebar-foreground"
+                      : "pl-3 text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span>{label}</span>
+                </button>
+              </div>
+            );
+          })}
 
           {/* Dictamen (acceso rápido desde cola) */}
           {view === "detalle" && (
-            <button
-              className="flex w-full cursor-pointer items-center gap-3 rounded-md bg-sidebar-accent px-3 py-2.5 text-sm text-sidebar-foreground"
-              disabled
-            >
-              <ClipboardCheck className="h-4 w-4" />
-              <span>Dictamen</span>
-            </button>
+            <div className="relative">
+              <div className="absolute inset-y-1.5 left-0 w-0.5 rounded-r-full bg-gold" />
+              <button
+                className="flex w-full cursor-pointer items-center gap-3 rounded-md bg-sidebar-accent py-2.5 pl-4 text-sm font-medium text-sidebar-foreground"
+                disabled
+              >
+                <ClipboardCheck className="h-4 w-4 shrink-0" />
+                <span>Dictamen</span>
+              </button>
+            </div>
           )}
 
           {session.rol === "ADMIN" && (
@@ -152,21 +162,28 @@ export function AgenteShell({ session, onLogout }: Props) {
               <p className="mb-2 mt-4 px-2 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">
                 Administración
               </p>
-              {NAV_ADMIN.map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  onClick={() => { setView(id); setSelectedId(null); }}
-                  className={cn(
-                    "flex w-full cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors",
-                    view === id
-                      ? "bg-sidebar-accent text-sidebar-foreground"
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span>{label}</span>
-                </button>
-              ))}
+              {NAV_ADMIN.map(({ id, label, icon: Icon }) => {
+                const isActive = view === id;
+                return (
+                  <div key={id} className="relative">
+                    {isActive && (
+                      <div className="absolute inset-y-1.5 left-0 w-0.5 rounded-r-full bg-gold" />
+                    )}
+                    <button
+                      onClick={() => { setView(id); setSelectedId(null); }}
+                      className={cn(
+                        "flex w-full cursor-pointer items-center gap-3 rounded-md py-2.5 text-sm transition-colors",
+                        isActive
+                          ? "bg-sidebar-accent pl-4 font-medium text-sidebar-foreground"
+                          : "pl-3 text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                      )}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span>{label}</span>
+                    </button>
+                  </div>
+                );
+              })}
             </>
           )}
         </nav>

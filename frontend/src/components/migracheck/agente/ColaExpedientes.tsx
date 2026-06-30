@@ -8,7 +8,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Loader2, AlertTriangle, RefreshCw, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -35,11 +35,11 @@ function RiskBadge({ nivel }: { nivel: string | null }) {
 
 function EstadoBadge({ estado }: { estado: string }) {
   const cfg = {
-    PENDIENTE: "bg-warning/15 text-warning-foreground",
+    PENDIENTE: "bg-amber-500/15 text-amber-700",
     EN_EVALUACION: "bg-blue-500/15 text-blue-700",
     APROBADO: "bg-success/15 text-success",
     RECHAZADO: "bg-danger/15 text-danger",
-    SUBSANACION_PENDIENTE: "bg-muted text-muted-foreground",
+    SUBSANACION_PENDIENTE: "bg-orange-500/15 text-orange-700",
   }[estado] ?? "bg-muted text-muted-foreground";
   return (
     <span className={cn("inline-flex rounded px-2 py-0.5 text-[10px] font-semibold uppercase", cfg)}>
@@ -221,10 +221,11 @@ export function ColaExpedientes({ modoHistorial = false, session, onSeleccionar 
                   <TableCell>
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground"
                       onClick={(e) => { e.stopPropagation(); onSeleccionar(app.id); }}
                     >
-                      Ver
+                      <ChevronRight className="h-4 w-4" />
                     </Button>
                   </TableCell>
                 </TableRow>

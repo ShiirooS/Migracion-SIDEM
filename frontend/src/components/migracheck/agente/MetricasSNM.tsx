@@ -194,17 +194,17 @@ export function MetricasSNM() {
     <div className="space-y-6">
 
       {/* ── Header ───────────────────────────────────────────── */}
-      <div className="overflow-hidden rounded-2xl border bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 text-white shadow-lg">
+      <div className="overflow-hidden rounded-2xl border bg-institutional p-6 text-institutional-foreground shadow-lg">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-medium uppercase tracking-widest text-slate-400">
+            <p className="text-xs font-medium uppercase tracking-widest text-institutional-foreground/50">
               Sistema Nacional de Migración · Panamá
             </p>
             <h1 className="mt-1 text-2xl font-bold">Métricas operativas</h1>
           </div>
           <div className="flex items-center gap-3">
             {lastUpdated && (
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-institutional-foreground/40">
                 Actualizado {lastUpdated.toLocaleTimeString("es-PA", { hour: "2-digit", minute: "2-digit" })}
               </p>
             )}
@@ -213,7 +213,7 @@ export function MetricasSNM() {
               size="sm"
               onClick={cargar}
               disabled={loading}
-              className="gap-2 text-slate-300 hover:bg-white/10 hover:text-white"
+              className="gap-2 text-institutional-foreground/70 hover:bg-institutional-hover hover:text-institutional-foreground"
             >
               <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
               Actualizar
@@ -224,15 +224,15 @@ export function MetricasSNM() {
         {/* Métricas top en el header */}
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
           {[
-            { label: "Total expedientes", value: metrics.total,        icon: BarChart3,   color: "text-white" },
+            { label: "Total expedientes", value: metrics.total,        icon: BarChart3,   color: "text-institutional-foreground" },
             { label: "Ingresados hoy",    value: metrics.hoy,          icon: TrendingUp,  color: "text-blue-300" },
-            { label: "En proceso",        value: metrics.pendientes + metrics.en_evaluacion, icon: Activity, color: "text-amber-300" },
+            { label: "En proceso",        value: metrics.pendientes + metrics.en_evaluacion, icon: Activity, color: "text-gold" },
             { label: "Resueltos",         value: metrics.resueltas,    icon: CheckCircle, color: "text-emerald-300" },
           ].map((s) => (
-            <div key={s.label} className="rounded-xl bg-white/5 p-4">
+            <div key={s.label} className="rounded-xl bg-institutional-foreground/5 p-4">
               <div className="flex items-center gap-2">
                 <s.icon className={cn("h-4 w-4", s.color)} />
-                <p className="text-xs text-slate-400">{s.label}</p>
+                <p className="text-xs text-institutional-foreground/50">{s.label}</p>
               </div>
               <p className={cn("mt-2 text-3xl font-bold tabular-nums", s.color)}>{s.value}</p>
             </div>
